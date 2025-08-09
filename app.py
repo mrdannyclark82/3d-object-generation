@@ -132,17 +132,19 @@ def create_app():
                     toggle_btn = gr.Button("📊", elem_classes=["toggle-status-btn"], size="sm")
         
         # Main layout
-        with gr.Row():
+        with gr.Row(elem_classes=["content-row"]):
             # Left: Chat and Gallery
-            with gr.Column(scale=4, elem_classes=["main-content"]):
-                # Chat interface
+            with gr.Column(scale=4, elem_classes=["main-content", "landing"]) as main_col:
+                # Chat interface (landing screen)
                 chat_components = create_chat_interface()
-                
-                # Object gallery
-                gallery_components = create_image_gallery()
-                
-                # Blender export section
-                export_components = create_blender_export_section()
+
+                # Workspace (hidden initially): gallery + export
+                with gr.Column(visible=False, elem_classes=["workspace-section"]) as workspace_section:
+                    # Object gallery
+                    gallery_components = create_image_gallery()
+                    
+                    # Blender export section
+                    export_components = create_blender_export_section()
                 
                 # Export status textbox
                 export_status = gr.Textbox(label="Export Status", interactive=False, visible=False)
@@ -176,6 +178,14 @@ def create_app():
             
             return message, new_gallery_data
         
+        # Helper to reveal workspace and switch layout out of landing mode
+        def reveal_workspace():
+            return (
+                gr.update(visible=True),                 # show workspace
+                gr.update(elem_classes=["main-content"]), # remove landing centering
+                gr.update(visible=False),                # hide chat section
+            ) 
+        
         # Connect send button to process scene description
         chat_components["send_btn"].click(
             fn=process_scene_description,
@@ -189,6 +199,10 @@ def create_app():
             fn=update_export_section,
             inputs=[gallery_components["data"]],
             outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
+        ).then(
+            fn=reveal_workspace,
+            inputs=[],
+            outputs=[workspace_section, main_col, chat_components["section"]]
         )
         
         # Connect Enter key for scene input
@@ -204,6 +218,10 @@ def create_app():
             fn=update_export_section,
             inputs=[gallery_components["data"]],
             outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
+        ).then(
+            fn=reveal_workspace,
+            inputs=[],
+            outputs=[workspace_section, main_col, chat_components["section"]]
         )
         
         # Connect toggle button to show/hide right panel

@@ -141,7 +141,6 @@
     height: 44px;
     box-sizing: border-box;
     text-align: center;
-    margin-left: 16px !important;
 }
 
 .scene-input::placeholder {
@@ -591,4 +590,57 @@
         min-width: 160px !important;
     }
 }
+
+/* Content row fills viewport height minus header; centers landing content */
+.content-row {
+    min-height: calc(100vh - 250px) !important; /* adjust offset for header */
+    width: 100% !important;
+    display: flex !important;
+    align-items: flex-start !important; /* default: top align */
+    justify-content: center !important; /* center horizontally */
+}
+
+/* When landing (chat-only), center vertically */
+.content-row:has(.landing) {
+    align-items: center !important;
+}
+
+/* Landing layout: center chat interface on first screen */
+.landing {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* When workspace is visible, revert to normal flow */
+.landing:has(.workspace-section:not([style*="display: none"])) {
+    justify-content: flex-start;
+    align-items: stretch;
+}
+
+.landing .scene-section {
+    width: 100%;
+    max-width: 900px;
+}
+
+/* Workspace section spacing once revealed */
+.workspace-section {
+    margin-top: 16px;
+}
+
+/* Trim excess top spacing in the app/header */
+body { margin-top: 0 !important; }
+.gradio-container { padding-top: 0 !important; margin-top: 0 !important; }
+.gradio-container .app { padding-top: 0 !important; margin-top: 0 !important; }
+.gradio-container .main { padding-top: 0 !important; margin-top: 0 !important; }
+.gradio-container .block { padding-top: 0 !important; margin-top: 0 !important; }
+.gradio-container .gr-block { padding-top: 0 !important; margin-top: 0 !important; }
+.header-section { margin-top: 0 !important; padding-top: 0 !important; }
+.header-section .gr-row, .header-section .gr-column { margin-top: 0 !important; padding-top: 0 !important; }
+.header-section > * { margin-top: 0 !important; }
+/* Remove residual margins on logo and header HTML blocks */
+.nvidia-logo-container { margin-top: 0 !important; padding-top: 0 !important; }
+.header-section .gr-html { margin-top: 0 !important; padding-top: 0 !important; }
 
