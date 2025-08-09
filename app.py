@@ -20,6 +20,12 @@ from services.agent_service import AgentService
 from services.image_generation_service import ImageGenerationService
 from services.model_3d_service import Model3DService
 import config
+import threading
+import subprocess
+import sys
+import requests
+from pathlib import Path
+from nim_llm.manager import stop_container
 
 # Load custom CSS and JS
 try:
@@ -47,6 +53,40 @@ except FileNotFoundError:
             <span class='nvidia-text'>Chat-to-3D</span> 
             </div>"""
 
+# Background bootstrap for LLM NIM
+_nim_bootstrap_started = False
+
+def _ensure_llm_nim_started():
+    """Start the LLM NIM container in the background if it's not already healthy."""
+    global _nim_bootstrap_started
+    if _nim_bootstrap_started:
+        return
+    _nim_bootstrap_started = True
+
+    health_url = f"{config.AGENT_BASE_URL}/health/ready"
+    try:
+        resp = requests.get(health_url, timeout=1.5)
+        if resp.status_code == 200:
+            print("✅ LLM NIM already running")
+            return
+    except Exception:
+        pass
+
+    def _runner():
+        try:
+            script_path = Path(__file__).parent / "nim_llm" / "run_llama.py"
+            print(f"🚀 Starting LLM NIM via {script_path}")
+            popen_kwargs = {}
+            if os.name == "nt":
+                popen_kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            else:
+                popen_kwargs["start_new_session"] = True
+            subprocess.Popen([sys.executable, str(script_path)], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, **popen_kwargs)
+        except Exception as e:
+            print(f"❌ Failed to start LLM NIM: {e}")
+
+    threading.Thread(target=_runner, daemon=True).start()
+
 
 def create_app():
     """Create and configure the main Gradio application."""
@@ -55,7 +95,10 @@ def create_app():
     agent_service = AgentService()
     image_generation_service = ImageGenerationService()
     model_3d_service = Model3DService()
-    
+
+    # Kick off NIM container in background if needed (non-blocking)
+    _ensure_llm_nim_started()
+
     with gr.Blocks(
         title="Chat-to-3D", 
         # css_paths=["static/css/custom.css"]
@@ -483,5 +526,14 @@ def create_app():
 
 
 if __name__ == "__main__":
-    app = create_app()
-    app.launch(debug=True) 
+    try:
+        app = create_app()
+        app.launch(debug=True)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            print("🛑 Stopping LLM NIM container...")
+            stop_container()
+        except Exception:
+            pass 
