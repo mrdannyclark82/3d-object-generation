@@ -31,8 +31,8 @@ STATIC_DIR = BASE_DIR / "static"
 CSS_DIR = STATIC_DIR / "css"
 JS_DIR = STATIC_DIR / "js"
 IMAGES_DIR = STATIC_DIR / "images"
-GENERATED_IMAGES_DIR = IMAGES_DIR / "generated"
 ASSETS_APP_DIR = BASE_DIR / "assets"
+GENERATED_IMAGES_DIR = ASSETS_APP_DIR / "images"
 MODELS_DIR = ASSETS_APP_DIR / "models"
 
 # Create application directories

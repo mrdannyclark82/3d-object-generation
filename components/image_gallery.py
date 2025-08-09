@@ -188,17 +188,7 @@ def create_image_gallery():
             print(f"✅ Gallery UI updated with {len(gallery_data)} visible cards")
             return updates
         
-        # Hook up event bindings for each card
-        for idx, card in enumerate(card_components):
-            card["delete_btn"].click(
-                fn=create_delete_function(idx),
-                inputs=[gallery_data],
-                outputs=[gallery_data]
-            ).then(
-                fn=shift_card_ui,
-                inputs=[gallery_data],
-                outputs=get_all_card_outputs()
-            )
+        # Note: Delete button events are handled in the main app to enable export section updates
     
     return {
         "section": gallery_section,

@@ -413,6 +413,39 @@ def create_app():
             outputs=[edit_modal, edit_current_index, edit_image_title, edit_description]
         )
         
+        # Wire up delete button events for each card
+        for idx, card in enumerate(gallery_components["card_components"]):
+            def create_delete_function(card_idx):
+                def delete_specific_card(gallery_data):
+                    if card_idx < len(gallery_data):
+                        print(f"🗑️ Deleting card at index: {card_idx} title: {gallery_data[card_idx]['title']}")
+                        # Check if this card has a 3D asset that will be removed
+                        has_3d_asset = gallery_data[card_idx].get("glb_path") and gallery_data[card_idx]["glb_path"]
+                        if has_3d_asset:
+                            print(f"🗑️ Removing 3D asset: {gallery_data[card_idx]['glb_path']}")
+                        
+                        # Remove the card from gallery data
+                        updated_data = [item for i, item in enumerate(gallery_data) if i != card_idx]
+                        return updated_data
+                    else:
+                        print(f"❌ Card index {card_idx} out of range")
+                        return gallery_data
+                return delete_specific_card
+            
+            card["delete_btn"].click(
+                fn=create_delete_function(idx),
+                inputs=[gallery_components["data"]],
+                outputs=[gallery_components["data"]]
+            ).then(
+                fn=gallery_components["shift_card_ui"],
+                inputs=[gallery_components["data"]],
+                outputs=gallery_components["get_all_card_outputs"]()
+            ).then(
+                fn=update_export_section,
+                inputs=[gallery_components["data"]],
+                outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
+            )
+        
         # Wire up convert all to 3D button (two-stage process)
         gallery_components["convert_all_btn"].click(
             fn=disable_buttons_handler,
