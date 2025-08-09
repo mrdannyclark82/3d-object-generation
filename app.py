@@ -140,6 +140,8 @@ def create_app():
 
                 # Workspace (hidden initially): gallery + export
                 with gr.Column(visible=False, elem_classes=["workspace-section"]) as workspace_section:
+                    with gr.Row():
+                        start_over_btn = gr.Button("← Start over with a new scene prompt", elem_classes=["start-over-btn"], size="sm")
                     # Object gallery
                     gallery_components = create_image_gallery()
                     
@@ -185,6 +187,28 @@ def create_app():
                 gr.update(elem_classes=["main-content"]), # remove landing centering
                 gr.update(visible=False),                # hide chat section
             ) 
+
+        # Helper to reset all UI/state and return to landing
+        def go_to_first_screen():
+            return (
+                gr.update(visible=False),               # hide workspace
+                gr.update(elem_classes=["main-content", "landing"]),  # restore landing centering
+                gr.update(visible=True),                # show chat section
+                gr.update(value=""),                   # clear chat input
+                gr.update(visible=False),               # hide export status
+                gr.update(visible=False),               # hide right panel if open
+            )
+
+        # Toggle start-over availability based on processing state
+        def update_start_over_state(gallery_data):
+            try:
+                any_processing = any(
+                    (obj.get("3d_generating", False) or obj.get("batch_processing", False))
+                    for obj in (gallery_data or [])
+                )
+                return gr.update(interactive=not any_processing)
+            except Exception:
+                return gr.update(interactive=True)
         
         # Connect send button to process scene description
         chat_components["send_btn"].click(
@@ -222,6 +246,28 @@ def create_app():
             fn=reveal_workspace,
             inputs=[],
             outputs=[workspace_section, main_col, chat_components["section"]]
+        )
+
+        # Start over button: clear gallery/export and return to landing screen
+        def clear_gallery_state(_):
+            return []
+
+        start_over_btn.click(
+            fn=clear_gallery_state,
+            inputs=[gallery_components["data"]],
+            outputs=[gallery_components["data"]]
+        ).then(
+            fn=gallery_components["shift_card_ui"],
+            inputs=[gallery_components["data"]],
+            outputs=gallery_components["get_all_card_outputs"]()
+        ).then(
+            fn=update_export_section,
+            inputs=[gallery_components["data"]],
+            outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
+        ).then(
+            fn=go_to_first_screen,
+            inputs=[],
+            outputs=[workspace_section, main_col, chat_components["section"], chat_components["input"], export_status, right_panel]
         )
         
         # Connect toggle button to show/hide right panel
@@ -372,6 +418,10 @@ def create_app():
                 inputs=[gallery_components["data"]],
                 outputs=gallery_components["get_all_card_outputs"]()
             ).then(
+                fn=update_start_over_state,              # immediately disable Start Over
+                inputs=[gallery_components["data"]],
+                outputs=[start_over_btn]
+            ).then(
                 fn=generation_fn,
                 inputs=[gallery_components["data"]],
                 outputs=[gallery_components["data"]]
@@ -383,6 +433,10 @@ def create_app():
                 fn=update_export_section,
                 inputs=[gallery_components["data"]],
                 outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
+            ).then(
+                fn=update_start_over_state,
+                inputs=[gallery_components["data"]],
+                outputs=[start_over_btn]
             ).then(
                 fn=lambda data, idx=idx: update_modal_3d_components(data, idx),
                 inputs=[gallery_components["data"]],
@@ -517,6 +571,10 @@ def create_app():
             inputs=[gallery_components["data"]],
             outputs=gallery_components["get_all_card_outputs"]()
         ).then(
+            fn=update_start_over_state,                  # immediately disable Start Over during batch
+            inputs=[gallery_components["data"]],
+            outputs=[start_over_btn]
+        ).then(
             fn=convert_all_handler,
             inputs=[gallery_components["data"]],
             outputs=[gallery_components["data"]]
@@ -528,6 +586,10 @@ def create_app():
             fn=update_export_section,
             inputs=[gallery_components["data"]],
             outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
+        ).then(
+            fn=update_start_over_state,
+            inputs=[gallery_components["data"]],
+            outputs=[start_over_btn]
         )
         
         # Wire up export button

@@ -644,3 +644,18 @@ body { margin-top: 0 !important; }
 .nvidia-logo-container { margin-top: 0 !important; padding-top: 0 !important; }
 .header-section .gr-html { margin-top: 0 !important; padding-top: 0 !important; }
 
+.start-over-btn {
+    background: #f8f9fb !important;
+    border: 1px solid #e5e7eb !important;
+    color: #2563eb !important;
+    font-weight: 500 !important;
+    padding: 6px 10px !important;
+    border-radius: 6px !important;
+    margin-bottom: 8px !important;
+    text-align: left !important;
+}
+.start-over-btn:hover {
+    background: #eef2ff !important;
+    border-color: #c7d2fe !important;
+}
+
