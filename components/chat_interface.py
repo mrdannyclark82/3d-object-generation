@@ -54,7 +54,8 @@ def handle_scene_description(scene_description, agent_service, gallery_data, ima
                 gallery_item = {
                     "title": obj_name,
                     "path": None,
-                    "description": prompt
+                    "description": prompt,
+                    "image_generating": True,
                 }
                 new_gallery_data.append(gallery_item)
             

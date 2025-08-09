@@ -96,12 +96,20 @@ def create_image_gallery():
                     print(f"  Card {idx}: {obj['title']} -> {obj['path']}")
                     
                     updates.append(gr.update(value=f"### {obj['title']}"))
-                    updates.append(gr.update(value=obj["path"]))
+                    
+                    # Determine image to display (actual image, generating placeholder, or empty)
+                    is_image_generating = obj.get("image_generating", False)
+                    if obj.get("path"):
+                        updates.append(gr.update(value=obj["path"]))
+                    elif is_image_generating:
+                        updates.append(gr.update(value=str(config.GENERATING_PLACEHOLDER_FILE)))
+                    else:
+                        updates.append(gr.update(value=None))
                     
                     # Check processing states to disable other buttons
                     is_3d_generating = obj.get("3d_generating", False)
                     is_batch_processing = obj.get("batch_processing", False)
-                    is_image_generating = obj.get("image_generating", False)
+                    # is_image_generating already computed above
                     is_processing = is_3d_generating or is_batch_processing or is_image_generating
                     
                     # Update refresh button state

@@ -43,6 +43,7 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 CUSTOM_CSS_FILE = CSS_DIR / "custom.css"
 CUSTOM_JS_FILE = JS_DIR / "custom.js"
 NVIDIA_LOGO_FILE = IMAGES_DIR / "nvidia_logo.png"
+GENERATING_PLACEHOLDER_FILE = IMAGES_DIR / "generating.svg"
 
 NUM_OF_OBJECTS = 2
 
