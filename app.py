@@ -176,7 +176,7 @@ def create_app():
             if not scene_description.strip():
                 return "Please enter a scene description.", gallery_data
             
-            message, new_gallery_data = handle_scene_description(scene_description, agent_service, gallery_data, image_generation_service)
+            message, new_gallery_data = handle_scene_description(scene_description, agent_service, gallery_data, None)
             
             return message, new_gallery_data
         
@@ -199,11 +199,70 @@ def create_app():
                 gr.update(visible=False),               # hide right panel if open
             )
 
+        # New: Generate images for all objects after moving to workspace
+        def generate_images_for_gallery(gallery_data):
+            try:
+                if not gallery_data:
+                    return gallery_data
+                print("🎨 Generating images for all objects (step 2)...")
+                success, message, generated_images = image_generation_service.generate_images_for_objects(gallery_data)
+                if success and generated_images:
+                    updated_data = []
+                    for obj in gallery_data:
+                        object_name = obj.get("title")
+                        new_obj = obj.copy()
+                        if object_name in generated_images:
+                            new_obj["path"] = generated_images[object_name]
+                            print(f"✅ Generated image for {object_name}: {generated_images[object_name]}")
+                        else:
+                            print(f"⚠️ No image generated for {object_name}")
+                        # Clear image generation flag after completion
+                        if "image_generating" in new_obj:
+                            new_obj["image_generating"] = False
+                        updated_data.append(new_obj)
+                    return updated_data
+                else:
+                    print(f"❌ Image generation failed: {message}")
+                    # Clear image generation flag even on failure
+                    if not gallery_data:
+                        return gallery_data
+                    updated_data = []
+                    for obj in gallery_data:
+                        new_obj = obj.copy()
+                        if "image_generating" in new_obj:
+                            new_obj["image_generating"] = False
+                        updated_data.append(new_obj)
+                    return updated_data
+            except Exception as e:
+                print(f"❌ Error during image generation: {str(e)}")
+                # Clear image generation flag even on exception
+                if not gallery_data:
+                    return gallery_data
+                updated_data = []
+                for obj in gallery_data:
+                    new_obj = obj.copy()
+                    if "image_generating" in new_obj:
+                        new_obj["image_generating"] = False
+                    updated_data.append(new_obj)
+                return updated_data
+        
+        # New: Mark items as image-generating to disable Start Over immediately
+        def mark_images_generating(gallery_data):
+            if not gallery_data:
+                return gallery_data
+            updated_data = []
+            for obj in gallery_data:
+                new_obj = obj.copy()
+                new_obj["image_generating"] = True
+                updated_data.append(new_obj)
+            print("⏳ Marked all items as image_generating=True")
+            return updated_data
+        
         # Toggle start-over availability based on processing state
         def update_start_over_state(gallery_data):
             try:
                 any_processing = any(
-                    (obj.get("3d_generating", False) or obj.get("batch_processing", False))
+                    (obj.get("3d_generating", False) or obj.get("batch_processing", False) or obj.get("image_generating", False))
                     for obj in (gallery_data or [])
                 )
                 return gr.update(interactive=not any_processing)
@@ -227,6 +286,34 @@ def create_app():
             fn=reveal_workspace,
             inputs=[],
             outputs=[workspace_section, main_col, chat_components["section"]]
+        ).then(
+            fn=mark_images_generating,
+            inputs=[gallery_components["data"]],
+            outputs=[gallery_components["data"]]
+        ).then(
+            fn=gallery_components["shift_card_ui"],
+            inputs=[gallery_components["data"]],
+            outputs=gallery_components["get_all_card_outputs"]()
+        ).then(
+            fn=update_start_over_state,
+            inputs=[gallery_components["data"]],
+            outputs=[start_over_btn]
+        ).then(
+            fn=generate_images_for_gallery,
+            inputs=[gallery_components["data"]],
+            outputs=[gallery_components["data"]]
+        ).then(
+            fn=gallery_components["shift_card_ui"],
+            inputs=[gallery_components["data"]],
+            outputs=gallery_components["get_all_card_outputs"]()
+        ).then(
+            fn=update_export_section,
+            inputs=[gallery_components["data"]],
+            outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
+        ).then(
+            fn=update_start_over_state,
+            inputs=[gallery_components["data"]],
+            outputs=[start_over_btn]
         )
         
         # Connect Enter key for scene input
@@ -246,6 +333,34 @@ def create_app():
             fn=reveal_workspace,
             inputs=[],
             outputs=[workspace_section, main_col, chat_components["section"]]
+        ).then(
+            fn=mark_images_generating,
+            inputs=[gallery_components["data"]],
+            outputs=[gallery_components["data"]]
+        ).then(
+            fn=gallery_components["shift_card_ui"],
+            inputs=[gallery_components["data"]],
+            outputs=gallery_components["get_all_card_outputs"]()
+        ).then(
+            fn=update_start_over_state,
+            inputs=[gallery_components["data"]],
+            outputs=[start_over_btn]
+        ).then(
+            fn=generate_images_for_gallery,
+            inputs=[gallery_components["data"]],
+            outputs=[gallery_components["data"]]
+        ).then(
+            fn=gallery_components["shift_card_ui"],
+            inputs=[gallery_components["data"]],
+            outputs=gallery_components["get_all_card_outputs"]()
+        ).then(
+            fn=update_export_section,
+            inputs=[gallery_components["data"]],
+            outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
+        ).then(
+            fn=update_start_over_state,
+            inputs=[gallery_components["data"]],
+            outputs=[start_over_btn]
         )
 
         # Start over button: clear gallery/export and return to landing screen
