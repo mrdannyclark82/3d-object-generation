@@ -91,6 +91,16 @@ def _ensure_llm_nim_started():
     threading.Thread(target=_runner, daemon=True).start()
 
 
+def stop_llm_container():
+    global _nim_bootstrap_started
+    try:
+        stop_container()
+        _nim_bootstrap_started = False
+        print("✅ LLM NIM container stopped and bootstrap reset")
+    except Exception as e:
+        print(f"❌ Error stopping LLM NIM container: {e}")
+        _nim_bootstrap_started = False
+
 def create_app():
     """Create and configure the main Gradio application."""
     
@@ -121,11 +131,11 @@ def create_app():
                 with gr.Row(elem_classes=["status-row"]):
                     llm_status = gr.HTML("""
                     <div>
-                        <span class="status-text">LLM: loading...</span>
+                        <span class="status-text"></span>
                     </div>
                     """)
                     refresh_status_btn = gr.Button("🔄", elem_classes=["refresh-status-btn"], size="sm", visible=False)
-                    toggle_btn = gr.Button("📊", elem_classes=["toggle-status-btn"], size="sm")
+                    toggle_btn = gr.Button(">", elem_classes=["toggle-status-btn"], size="sm")
             
         # Global spinner overlay shown until LLM is ready
         llm_spinner = gr.HTML(
@@ -149,6 +159,7 @@ def create_app():
             with gr.Column(scale=4, elem_classes=["main-content", "landing"]) as main_col:
                 # Chat interface (landing screen) - hidden until LLM is ready
                 chat_components = create_chat_interface()
+                chat_components["section"].visible = False
                 # Don't set visible=False here, let the Timer control it
 
                 # Workspace (hidden initially): gallery + export
@@ -218,6 +229,8 @@ def create_app():
                 llm_ready = (resp.status_code == 200)
             except Exception:
                 llm_ready = False
+                #start the llM again
+                _ensure_llm_nim_started()
             
             return (
                 gr.update(visible=False),               # hide workspace
@@ -227,6 +240,7 @@ def create_app():
                 gr.update(visible=False),               # hide export status
                 gr.update(visible=False),               # hide right panel if open
                 False,                                  # set workspace mode to False
+                gr.update(active=True),                 # restart health timer
             )
 
         # New: Generate images for all objects after moving to workspace
@@ -299,6 +313,41 @@ def create_app():
             except Exception:
                 return gr.update(interactive=True)
         
+        # Health check function for LLM NIM; updates status and controls UI visibility
+        def check_llm_health():
+            global _in_workspace_mode
+            health_url = f"{config.AGENT_BASE_URL}/health/ready"
+            try:
+                resp = requests.get(health_url, timeout=1.0)
+                ready = (resp.status_code == 200)
+            except Exception:
+                ready = False
+            status_color = "#16be16" if ready else "#f59e0b"
+            status_label = "LLM: ready" if ready else "LLM: loading..."
+            status_html = f'<div class="status-section"><span class="status-text" style="color:{status_color}">{status_label}</span></div>'
+            show_spinner = not ready and not _in_workspace_mode
+            # Only show chat when LLM is ready AND we're not in workspace mode
+            show_chat = ready and not _in_workspace_mode
+            # Show refresh button when in workspace mode, hide when in landing mode
+            show_refresh = True
+            # Stop timer if we're in workspace mode
+            timer_active = not _in_workspace_mode
+            print(f"🔍 Checking LLM health... in_workspace_mode: {_in_workspace_mode} timer_active: {timer_active}")
+            return gr.update(visible=show_spinner), gr.update(value=status_html), gr.update(visible=show_chat), gr.update(visible=show_refresh), gr.update(active=timer_active)
+        
+        # Timer for initial health polling (only active until we reach workspace mode)
+        health_timer = gr.Timer(5, active=True)
+        health_timer.tick(
+            fn=check_llm_health,
+            outputs=[llm_spinner, llm_status, chat_components["section"], refresh_status_btn, health_timer]
+        )
+        
+        # Wire up manual refresh button
+        refresh_status_btn.click(
+            fn=check_llm_health,
+            outputs=[llm_spinner, llm_status, chat_components["section"], refresh_status_btn, health_timer]
+        )
+        
         # Connect send button to process scene description
         chat_components["send_btn"].click(
             fn=process_scene_description,
@@ -328,6 +377,10 @@ def create_app():
             fn=update_start_over_state,
             inputs=[gallery_components["data"]],
             outputs=[start_over_btn]
+        ).then(
+            fn=stop_llm_container,
+            inputs=[],
+            outputs=[]
         ).then(
             fn=generate_images_for_gallery,
             inputs=[gallery_components["data"]],
@@ -376,6 +429,10 @@ def create_app():
             inputs=[gallery_components["data"]],
             outputs=[start_over_btn]
         ).then(
+            fn=stop_llm_container,
+            inputs=[],
+            outputs=[]
+        ).then(
             fn=generate_images_for_gallery,
             inputs=[gallery_components["data"]],
             outputs=[gallery_components["data"]]
@@ -412,7 +469,7 @@ def create_app():
         ).then(
             fn=go_to_first_screen,
             inputs=[],
-            outputs=[workspace_section, main_col, chat_components["section"], chat_components["input"], export_status, right_panel, in_workspace_mode]
+            outputs=[workspace_section, main_col, chat_components["section"], chat_components["input"], export_status, right_panel, in_workspace_mode, health_timer]
         )
         
         # Connect toggle button to show/hide right panel
@@ -420,45 +477,6 @@ def create_app():
             fn=lambda: gr.update(visible=True),
             outputs=[right_panel]
         )
-        
-        # Health check function for LLM NIM; updates status and controls UI visibility
-        def check_llm_health():
-            global _in_workspace_mode
-            health_url = f"{config.AGENT_BASE_URL}/health/ready"
-            try:
-                resp = requests.get(health_url, timeout=1.0)
-                ready = (resp.status_code == 200)
-            except Exception:
-                ready = False
-            status_color = "#16be16" if ready else "#f59e0b"
-            status_label = "LLM: ready" if ready else "LLM: loading..."
-            status_html = f'<div class="status-section"><span class="status-text" style="color:{status_color}">{status_label}</span></div>'
-            # Only show chat when LLM is ready AND we're not in workspace mode
-            show_chat = ready and not _in_workspace_mode
-            # Show refresh button when in workspace mode, hide when in landing mode
-            show_refresh = _in_workspace_mode
-            # Stop timer if we're in workspace mode
-            timer_active = not _in_workspace_mode
-            return gr.update(visible=not ready), gr.update(value=status_html), gr.update(visible=show_chat), gr.update(visible=show_refresh), gr.update(active=timer_active)
-        
-        # Initial health check to set up the UI
-        def initial_health_check():
-            return check_llm_health()
-        
-        # Timer for initial health polling (only active until we reach workspace mode)
-        health_timer = gr.Timer(5, active=True)
-        health_timer.tick(
-            fn=check_llm_health,
-            outputs=[llm_spinner, llm_status, chat_components["section"], refresh_status_btn, health_timer]
-        )
-        
-        # Wire up manual refresh button
-        refresh_status_btn.click(
-            fn=check_llm_health,
-            outputs=[llm_spinner, llm_status, chat_components["section"], refresh_status_btn, health_timer]
-        )
-        
-
         
         # Connect close button to hide right panel
         status_components["close_btn"].click(
@@ -798,6 +816,6 @@ if __name__ == "__main__":
     finally:
         try:
             print("🛑 Stopping LLM NIM container...")
-            stop_container()
+            stop_llm_container()
         except Exception:
             pass 
