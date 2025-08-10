@@ -114,26 +114,19 @@ def create_app():
         
         # Header with NVIDIA branding and status
         with gr.Row(elem_classes=["header-section"]):
-            with gr.Column(scale=3):
+            with gr.Column(scale=1):
                 with gr.Row():
                     gr.HTML(nvidia_html)
             with gr.Column(scale=1):
-                with gr.Row():
+                with gr.Row(elem_classes=["status-row"]):
                     llm_status = gr.HTML("""
-                    <div class="status-section">
+                    <div>
                         <span class="status-text">LLM: loading...</span>
-                        <button class="status-button" id="refresh-status">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                                <path d="M21 3v5h-5"></path>
-                                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                                <path d="M3 21v-5h5"></path>
-                            </svg>
-                        </button>
                     </div>
                     """)
+                    refresh_status_btn = gr.Button("🔄", elem_classes=["refresh-status-btn"], size="sm", visible=False)
                     toggle_btn = gr.Button("📊", elem_classes=["toggle-status-btn"], size="sm")
-        
+            
         # Global spinner overlay shown until LLM is ready
         llm_spinner = gr.HTML(
             """
@@ -428,8 +421,8 @@ def create_app():
             outputs=[right_panel]
         )
         
-        # Health check poller for LLM NIM; hides spinner when ready and updates header status
-        def poll_llm_health():
+        # Health check function for LLM NIM; updates status and controls UI visibility
+        def check_llm_health():
             global _in_workspace_mode
             health_url = f"{config.AGENT_BASE_URL}/health/ready"
             try:
@@ -439,15 +432,30 @@ def create_app():
                 ready = False
             status_color = "#16be16" if ready else "#f59e0b"
             status_label = "LLM: ready" if ready else "LLM: loading..."
-            status_html = f"<div class='status-section'><span class='status-text' style='color:{status_color}'>{status_label}</span></div>"
+            status_html = f'<div class="status-section"><span class="status-text" style="color:{status_color}">{status_label}</span></div>'
             # Only show chat when LLM is ready AND we're not in workspace mode
             show_chat = ready and not _in_workspace_mode
-            return gr.update(visible=not ready), gr.update(value=status_html), gr.update(visible=show_chat)
+            # Show refresh button when in workspace mode, hide when in landing mode
+            show_refresh = _in_workspace_mode
+            # Stop timer if we're in workspace mode
+            timer_active = not _in_workspace_mode
+            return gr.update(visible=not ready), gr.update(value=status_html), gr.update(visible=show_chat), gr.update(visible=show_refresh), gr.update(active=timer_active)
         
-        # Periodic health polling (keeps running; inexpensive). Hides spinner when ready
-        gr.Timer(5, active=True).tick(
-            fn=poll_llm_health,
-            outputs=[llm_spinner, llm_status, chat_components["section"]]
+        # Initial health check to set up the UI
+        def initial_health_check():
+            return check_llm_health()
+        
+        # Timer for initial health polling (only active until we reach workspace mode)
+        health_timer = gr.Timer(5, active=True)
+        health_timer.tick(
+            fn=check_llm_health,
+            outputs=[llm_spinner, llm_status, chat_components["section"], refresh_status_btn, health_timer]
+        )
+        
+        # Wire up manual refresh button
+        refresh_status_btn.click(
+            fn=check_llm_health,
+            outputs=[llm_spinner, llm_status, chat_components["section"], refresh_status_btn, health_timer]
         )
         
 
