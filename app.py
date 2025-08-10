@@ -323,7 +323,7 @@ def create_app():
             except Exception:
                 ready = False
             status_color = "#16be16" if ready else "#f59e0b"
-            status_label = "LLM: ready" if ready else "LLM: loading..."
+            status_label = "LLM: ready" if ready else "LLM: down"
             status_html = f'<div class="status-section"><span class="status-text" style="color:{status_color}">{status_label}</span></div>'
             show_spinner = not ready and not _in_workspace_mode
             # Only show chat when LLM is ready AND we're not in workspace mode
