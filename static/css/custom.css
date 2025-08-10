@@ -43,6 +43,8 @@
 /* Header Section Styles */
 .header-section {
     margin-bottom: 24px;
+    position: relative;
+    z-index: 10000;
 }
 
 .nvidia-branding {
@@ -56,6 +58,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    position: relative;
+    z-index: 10001;
 }
 
 .nvidia-logo {
@@ -87,6 +91,8 @@
     align-items: center;
     gap: 8px;
     justify-content: flex-end;
+    position: relative;
+    z-index: 10001;
 }
 
 .status-text {
@@ -657,5 +663,43 @@ body { margin-top: 0 !important; }
 .start-over-btn:hover {
     background: #eef2ff !important;
     border-color: #c7d2fe !important;
+}
+
+/* LLM spinner overlay */
+.llm-spinner-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255,255,255,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    pointer-events: none;
+}
+.llm-spinner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #111827;
+    pointer-events: auto;
+}
+.llm-spinner-ring {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #d1fae5;
+    border-top-color: #16a34a;
+    border-radius: 50%;
+    animation: llm-spin 1s linear infinite;
+}
+.llm-spinner-title {
+    font-size: 18px;
+    font-weight: 600;
+}
+.llm-spinner-subtitle {
+    font-size: 12px;
+    color: #6b7280;
+}
+@keyframes llm-spin {
+    to { transform: rotate(360deg); }
 }
 

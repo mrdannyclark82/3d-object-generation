@@ -56,6 +56,9 @@ except FileNotFoundError:
 # Background bootstrap for LLM NIM
 _nim_bootstrap_started = False
 
+# Global state to track if we're in workspace mode
+_in_workspace_mode = False
+
 def _ensure_llm_nim_started():
     """Start the LLM NIM container in the background if it's not already healthy."""
     global _nim_bootstrap_started
@@ -116,9 +119,9 @@ def create_app():
                     gr.HTML(nvidia_html)
             with gr.Column(scale=1):
                 with gr.Row():
-                    gr.HTML("""
+                    llm_status = gr.HTML("""
                     <div class="status-section">
-                        <span class="status-text">LLM Agent is online and running</span>
+                        <span class="status-text">LLM: loading...</span>
                         <button class="status-button" id="refresh-status">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
@@ -131,12 +134,29 @@ def create_app():
                     """)
                     toggle_btn = gr.Button("📊", elem_classes=["toggle-status-btn"], size="sm")
         
+        # Global spinner overlay shown until LLM is ready
+        llm_spinner = gr.HTML(
+            """
+            <div class="llm-spinner-overlay">
+                <div class="llm-spinner-content">
+                    <div class="llm-spinner-ring"></div>
+                    <div>
+                        <div class="llm-spinner-title">Loading LLM model</div>
+                        <div class="llm-spinner-subtitle">This could take a few minutes...</div>
+                    </div>
+                </div>
+            </div>
+            """,
+            visible=True,
+        )
+        
         # Main layout
         with gr.Row(elem_classes=["content-row"]):
             # Left: Chat and Gallery
             with gr.Column(scale=4, elem_classes=["main-content", "landing"]) as main_col:
-                # Chat interface (landing screen)
+                # Chat interface (landing screen) - hidden until LLM is ready
                 chat_components = create_chat_interface()
+                # Don't set visible=False here, let the Timer control it
 
                 # Workspace (hidden initially): gallery + export
                 with gr.Column(visible=False, elem_classes=["workspace-section"]) as workspace_section:
@@ -166,6 +186,9 @@ def create_app():
                 edit_modal.visible = False
                 edit_current_index = gr.State(None)
                 
+                # State to track if we're in workspace mode (to prevent health poller from showing chat)
+                in_workspace_mode = gr.State(False)
+                
             # Right: Status panel
             with gr.Column(scale=1, elem_classes=["right-panel"], visible=False) as right_panel:
                 status_components = create_status_panel()
@@ -182,21 +205,35 @@ def create_app():
         
         # Helper to reveal workspace and switch layout out of landing mode
         def reveal_workspace():
+            global _in_workspace_mode
+            _in_workspace_mode = True
             return (
                 gr.update(visible=True),                 # show workspace
                 gr.update(elem_classes=["main-content"]), # remove landing centering
-                gr.update(visible=False),                # hide chat section
+                gr.update(visible=False),                # hide chat section (override Timer)
+                True,                                    # set workspace mode to True
             ) 
 
         # Helper to reset all UI/state and return to landing
         def go_to_first_screen():
+            global _in_workspace_mode
+            _in_workspace_mode = False
+            # Check if LLM is ready before showing chat
+            health_url = f"{config.AGENT_BASE_URL}/health/ready"
+            try:
+                resp = requests.get(health_url, timeout=1.0)
+                llm_ready = (resp.status_code == 200)
+            except Exception:
+                llm_ready = False
+            
             return (
                 gr.update(visible=False),               # hide workspace
                 gr.update(elem_classes=["main-content", "landing"]),  # restore landing centering
-                gr.update(visible=True),                # show chat section
+                gr.update(visible=llm_ready),           # show chat section only if LLM is ready
                 gr.update(value=""),                   # clear chat input
                 gr.update(visible=False),               # hide export status
                 gr.update(visible=False),               # hide right panel if open
+                False,                                  # set workspace mode to False
             )
 
         # New: Generate images for all objects after moving to workspace
@@ -285,7 +322,7 @@ def create_app():
         ).then(
             fn=reveal_workspace,
             inputs=[],
-            outputs=[workspace_section, main_col, chat_components["section"]]
+            outputs=[workspace_section, main_col, chat_components["section"], in_workspace_mode]
         ).then(
             fn=mark_images_generating,
             inputs=[gallery_components["data"]],
@@ -332,7 +369,7 @@ def create_app():
         ).then(
             fn=reveal_workspace,
             inputs=[],
-            outputs=[workspace_section, main_col, chat_components["section"]]
+            outputs=[workspace_section, main_col, chat_components["section"], in_workspace_mode]
         ).then(
             fn=mark_images_generating,
             inputs=[gallery_components["data"]],
@@ -382,7 +419,7 @@ def create_app():
         ).then(
             fn=go_to_first_screen,
             inputs=[],
-            outputs=[workspace_section, main_col, chat_components["section"], chat_components["input"], export_status, right_panel]
+            outputs=[workspace_section, main_col, chat_components["section"], chat_components["input"], export_status, right_panel, in_workspace_mode]
         )
         
         # Connect toggle button to show/hide right panel
@@ -390,6 +427,30 @@ def create_app():
             fn=lambda: gr.update(visible=True),
             outputs=[right_panel]
         )
+        
+        # Health check poller for LLM NIM; hides spinner when ready and updates header status
+        def poll_llm_health():
+            global _in_workspace_mode
+            health_url = f"{config.AGENT_BASE_URL}/health/ready"
+            try:
+                resp = requests.get(health_url, timeout=1.0)
+                ready = (resp.status_code == 200)
+            except Exception:
+                ready = False
+            status_color = "#16be16" if ready else "#f59e0b"
+            status_label = "LLM: ready" if ready else "LLM: loading..."
+            status_html = f"<div class='status-section'><span class='status-text' style='color:{status_color}'>{status_label}</span></div>"
+            # Only show chat when LLM is ready AND we're not in workspace mode
+            show_chat = ready and not _in_workspace_mode
+            return gr.update(visible=not ready), gr.update(value=status_html), gr.update(visible=show_chat)
+        
+        # Periodic health polling (keeps running; inexpensive). Hides spinner when ready
+        gr.Timer(5, active=True).tick(
+            fn=poll_llm_health,
+            outputs=[llm_spinner, llm_status, chat_components["section"]]
+        )
+        
+
         
         # Connect close button to hide right panel
         status_components["close_btn"].click(
