@@ -28,11 +28,6 @@ class ImageGenerationService:
                 torch.cuda.empty_cache()
                 gc.collect()
                 
-                # Get memory info for logging
-                if torch.cuda.is_available():
-                    allocated = torch.cuda.memory_allocated() / 1024**3
-                    reserved = torch.cuda.memory_reserved() / 1024**3
-                    logger.info(f"GPU memory cleared - Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB")
         except Exception as e:
             logger.warning(f"Could not clear GPU memory: {e}")
     
@@ -63,15 +58,14 @@ class ImageGenerationService:
             print(f"Time taken to load SANA model: {time.time() - initial_time} seconds")
             time.sleep(2)
 
-            # Check if model is already on GPU
-            if not hasattr(self.sana_pipeline, 'device') or str(self.sana_pipeline.device) == 'cpu':
-                initial_time = time.time()
-                # Move to GPU with memory optimization
-                self.sana_pipeline.to("cuda:0", non_blocking=True)
-                torch.cuda.synchronize()  # Wait for transfer to complete
-                print(f"Time taken to move SANA model to GPU: {time.time() - initial_time} seconds")
-                print(f"🕐 Timestamp after move_sana_model_to_gpu: {time.time()}")
             
+            initial_time = time.time()
+            # Move to GPU with memory optimization
+            self.sana_pipeline.to("cuda:0")
+            
+            print(f"Time taken to move SANA model to GPU: {time.time() - initial_time} seconds")
+            print(f"🕐 Timestamp after move_sana_model_to_gpu: {time.time()}")
+        
             self.is_loaded = True
             logger.info("Successfully loaded SANA model")   
             
@@ -82,18 +76,30 @@ class ImageGenerationService:
             self.is_loaded = False
             self.sana_pipeline = None
             return False
-    
-    def unload_model(self):
-        """Unload the model to free memory."""
-        try:
-            if self.sana_pipeline is not None:
+        
+    def cleanup_sana_pipeline(self):
+        """Clean up the current model"""
+        if self.sana_pipeline is not None:
+            try:
+                # Move to CPU first
+                if hasattr(self.sana_pipeline, 'cuda'):
+                    self.sana_pipeline.cpu()
+
+                # Clear internal tensors if any
+                if hasattr(self.sana_pipeline, '__dict__'):
+                    for k, v in list(vars(self.sana_pipeline).items()):
+                        if torch.is_tensor(v):
+                            setattr(self.sana_pipeline, k, None)
+                            del v
+                # Delete the model reference
                 del self.sana_pipeline
                 self.sana_pipeline = None
                 self.is_loaded = False
+
                 self._clear_gpu_memory()
-                logger.info("SANA model unloaded and memory freed")
-        except Exception as e:
-            logger.error(f"Error unloading model: {e}")
+                logger.info("Successfully cleaned up SANA pipeline")
+            except Exception as e:
+                logger.error(f"Error during cleanup: {e}")
     
     def generate_image_from_prompt(self, object_name, prompt, output_dir, seed=42):
         """Generate a single image from a prompt using SANA model."""
