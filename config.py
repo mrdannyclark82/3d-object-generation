@@ -31,8 +31,8 @@ STATIC_DIR = BASE_DIR / "static"
 CSS_DIR = STATIC_DIR / "css"
 JS_DIR = STATIC_DIR / "js"
 IMAGES_DIR = STATIC_DIR / "images"
-GENERATED_IMAGES_DIR = IMAGES_DIR / "generated"
 ASSETS_APP_DIR = BASE_DIR / "assets"
+GENERATED_IMAGES_DIR = ASSETS_APP_DIR / "images"
 MODELS_DIR = ASSETS_APP_DIR / "models"
 
 # Create application directories
@@ -43,12 +43,13 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 CUSTOM_CSS_FILE = CSS_DIR / "custom.css"
 CUSTOM_JS_FILE = JS_DIR / "custom.js"
 NVIDIA_LOGO_FILE = IMAGES_DIR / "nvidia_logo.png"
+GENERATING_PLACEHOLDER_FILE = IMAGES_DIR / "generating.svg"
 
-NUM_OF_OBJECTS = 2
+NUM_OF_OBJECTS = 20
 
 # Basic configuration settings
-MAX_CARDS = 2  # Maximum number of cards in gallery
-CARDS_PER_ROW = 2  # Number of cards per row in gallery
+MAX_CARDS = 20  # Maximum number of cards in gallery
+CARDS_PER_ROW = 4  # Number of cards per row in gallery
 VRAM_THRESHOLD = 16  # VRAM threshold in GB for stopping the LLM Agent
 DEFAULT_SEED = 42
 DEFAULT_SPARSE_STEPS = 25
@@ -79,6 +80,7 @@ INITIAL_MESSAGE = "Hello! I'm your helpful scene planning assistant. Please desc
 # Agent settings
 AGENT_MODEL = "meta/llama-3.1-8b-instruct"
 AGENT_BASE_URL ="http://localhost:19002/v1"
+TRELLIS_BASE_URL = "http://localhost:8000/v1"
 TWO_D_PROMPT_LENGTH = 30
 
 # Simple helper functions

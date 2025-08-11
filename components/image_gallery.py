@@ -96,12 +96,21 @@ def create_image_gallery():
                     print(f"  Card {idx}: {obj['title']} -> {obj['path']}")
                     
                     updates.append(gr.update(value=f"### {obj['title']}"))
-                    updates.append(gr.update(value=obj["path"]))
                     
-                    # Check if 3D generation is in progress or batch processing to disable other buttons
+                    # Determine image to display (actual image, generating placeholder, or empty)
+                    is_image_generating = obj.get("image_generating", False)
+                    if obj.get("path"):
+                        updates.append(gr.update(value=obj["path"]))
+                    elif is_image_generating:
+                        updates.append(gr.update(value=str(config.GENERATING_PLACEHOLDER_FILE)))
+                    else:
+                        updates.append(gr.update(value=None))
+                    
+                    # Check processing states to disable other buttons
                     is_3d_generating = obj.get("3d_generating", False)
                     is_batch_processing = obj.get("batch_processing", False)
-                    is_processing = is_3d_generating or is_batch_processing
+                    # is_image_generating already computed above
+                    is_processing = is_3d_generating or is_batch_processing or is_image_generating
                     
                     # Update refresh button state
                     refresh_interactive = not is_processing
@@ -124,24 +133,24 @@ def create_image_gallery():
                         delete_classes.append("disabled-btn")
                     updates.append(gr.update(interactive=delete_interactive, elem_classes=delete_classes))
                     
-                    # Update 3D button text and state based on 3D model status
+                    # Update 3D button text and state based on status
                     if "glb_path" in obj and obj["glb_path"]:
-                        # 3D model exists - show completed state
                         button_text = "✓ 3D"
                         button_interactive = False
                         button_classes = ["action-btn", "three-d-completed"]
-                    elif "3d_generating" in obj and obj["3d_generating"]:
-                        # 3D generation in progress
+                    elif obj.get("3d_generating"):
                         button_text = "⏳ 3D"
                         button_interactive = False
                         button_classes = ["action-btn", "three-d-generating"]
                     elif is_batch_processing:
-                        # Batch processing - disable button
                         button_text = "⏳ 3D"
                         button_interactive = False
                         button_classes = ["action-btn", "three-d-generating"]
+                    elif is_image_generating:
+                        button_text = "→ 3D"
+                        button_interactive = False
+                        button_classes = ["action-btn", "disabled-btn"]
                     else:
-                        # No 3D model - ready to generate
                         button_text = "→ 3D"
                         button_interactive = True
                         button_classes = ["action-btn"]
@@ -162,8 +171,7 @@ def create_image_gallery():
             # Show/hide placeholder based on whether gallery has items
             updates.append(gr.update(visible=(len(gallery_data) == 0)))
             
-            # Show/enable convert all button based on whether there are items and unconverted items
-            # and whether batch processing is in progress
+            # Show/enable convert all button based on items, unconverted, and processing states
             has_items = len(gallery_data) > 0
             
             has_unconverted_items = any(
@@ -173,32 +181,32 @@ def create_image_gallery():
                 for idx in range(len(gallery_data))
             )
             
-            # Check if any item is in batch processing mode
             is_batch_processing = any(
                 idx < len(gallery_data) and 
                 gallery_data[idx].get("batch_processing", False)
                 for idx in range(len(gallery_data))
             )
+
+            any_image_generating = any(
+                idx < len(gallery_data) and 
+                gallery_data[idx].get("image_generating", False)
+                for idx in range(len(gallery_data))
+            )
+
+            any_3d_generating = any(
+                idx < len(gallery_data) and 
+                gallery_data[idx].get("3d_generating", False)
+                for idx in range(len(gallery_data))
+            )
             
-            # Show button if there are items, enable if there are unconverted items and no batch processing
             show_convert_all = has_items
-            enable_convert_all = has_unconverted_items and not is_batch_processing
+            enable_convert_all = has_unconverted_items and not is_batch_processing and not any_image_generating and not any_3d_generating
             updates.append(gr.update(visible=show_convert_all, interactive=enable_convert_all))
             
             print(f"✅ Gallery UI updated with {len(gallery_data)} visible cards")
             return updates
         
-        # Hook up event bindings for each card
-        for idx, card in enumerate(card_components):
-            card["delete_btn"].click(
-                fn=create_delete_function(idx),
-                inputs=[gallery_data],
-                outputs=[gallery_data]
-            ).then(
-                fn=shift_card_ui,
-                inputs=[gallery_data],
-                outputs=get_all_card_outputs()
-            )
+        # Note: Delete button events are handled in the main app to enable export section updates
     
     return {
         "section": gallery_section,

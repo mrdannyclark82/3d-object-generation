@@ -1,0 +1,21 @@
+<svg width="512" height="384" viewBox="0 0 512 384" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Generating image">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f5f5f5"/>
+      <stop offset="100%" stop-color="#e9ecef"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="384" fill="url(#grad)"/>
+  
+  <g transform="translate(256,170)">
+    <circle cx="0" cy="0" r="40" fill="none" stroke="#94a3b8" stroke-width="8" opacity="0.25"/>
+    <circle cx="0" cy="0" r="40" fill="none" stroke="#3b82f6" stroke-width="8" stroke-linecap="round" stroke-dasharray="60 200">
+      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="1s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+  
+  <g font-family="Segoe UI, Roboto, Arial, sans-serif" fill="#334155" text-anchor="middle">
+    <text x="256" y="250" font-size="32" font-weight="600">Generating image</text>
+    <text x="256" y="278" font-size="24" fill="#64748b">This may take a few minutes</text>
+  </g>
+</svg> 

@@ -24,6 +24,7 @@ class RuleType(Enum):
     """Enum for different rule types."""
     PLANNING = "planning"
     PROMPT_GENERATION = "prompt_generation"
+    INPUT_CLASSIFICATION = "input_classification"
 
 
 class LLMAgent:
@@ -34,6 +35,22 @@ class LLMAgent:
         self.agent = self._initialize_agent()
         self.is_generating_prompts = False
         self.health_check_url = f"{AGENT_BASE_URL}/health/ready"
+    
+    def _get_input_classification_rules(self):
+        """Get rules for input classification phase."""
+        return [
+            Rule("You are an input classifier for a 3D scene creation application."),
+            Rule("Your task is to determine if the user's input is a scene description or something else."),
+            Rule("A scene description should describe a physical environment, location, or setting that can contain objects."),
+            Rule("Scene descriptions typically include: locations (beach, kitchen, garden), environments (outdoor, indoor), settings (modern, rustic, tropical), or specific places."),
+            Rule("Non-scene inputs include: greetings (hello, hi), questions (what can you do, how does this work), general chat (thanks, nice app), or requests for help."),
+            Rule("You must respond with exactly one of these classifications:"),
+            Rule("1. 'SCENE' - if the input describes a scene, environment, or location that could contain objects"),
+            Rule("2. 'GREETING' - if the input is a greeting or salutation"),
+            Rule("3. 'QUESTION' - if the input is asking about capabilities, how to use the app, or seeking information"),
+            Rule("4. 'GENERAL_CHAT' - if the input is general conversation, thanks, or other non-scene content"),
+            Rule("Respond with only the classification word (SCENE, GREETING, QUESTION, or GENERAL_CHAT) - no additional text or explanation."),
+        ]
     
     def _get_planning_rules(self):
         """Get rules for scene planning phase."""
@@ -99,6 +116,9 @@ class LLMAgent:
             if rule_type == RuleType.PROMPT_GENERATION:
                 self.agent.rules = self._get_prompt_generation_rules()
                 self.is_generating_prompts = True
+            elif rule_type == RuleType.INPUT_CLASSIFICATION:
+                self.agent.rules = self._get_input_classification_rules()
+                self.is_generating_prompts = False
             else:
                 self.agent.rules = self._get_planning_rules()
                 self.is_generating_prompts = False
@@ -156,6 +176,41 @@ class AgentService:
             return response.output.value
         except Exception as e:
             return f"Error communicating with agent: {str(e)}"
+    
+    def classify_input(self, user_input):
+        """Classify if user input is a scene description or something else."""
+        try:
+            if not user_input.strip():
+                return "EMPTY", "Please enter a scene description."
+            
+            # Use the LLM to classify the input
+            response = self.agent.run(user_input, RuleType.INPUT_CLASSIFICATION)
+            classification = response.output.value.strip().upper()
+            
+            # Validate the classification
+            valid_classifications = ["SCENE", "GREETING", "QUESTION", "GENERAL_CHAT"]
+            if classification not in valid_classifications:
+                # Fallback to scene if classification is unclear
+                classification = "SCENE"
+            
+            # Generate appropriate response messages
+            if classification == "SCENE":
+                return "SCENE", None  # No message needed, proceed with scene processing
+            elif classification == "GREETING":
+                message = "👋 Hello! To get started, please describe a scene you'd like to create. For example: 'A cozy living room with a fireplace' or 'A tropical beach with palm trees'"
+                return "GREETING", message
+            elif classification == "QUESTION":
+                message = "🤖 I can help you create 3D scenes! Describe what you want to build, like 'A modern kitchen' or 'A garden with flowers'. I'll generate objects for your scene and create 3D models."
+                return "QUESTION", message
+            elif classification == "GENERAL_CHAT":
+                message = "💬 Thanks! To create a 3D scene, please describe what you'd like to build. Try something like 'A beach scene' or 'A modern office'."
+                return "GENERAL_CHAT", message
+            else:
+                return "SCENE", None  # Default fallback
+                
+        except Exception as e:
+            logger.error(f"Error classifying input: {e}")
+            return "SCENE", None  # Fallback to scene processing on error
     
     def generate_objects_for_scene(self, scene_description):
         """Generate 20 singular objects for a given scene description."""

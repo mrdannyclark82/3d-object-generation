@@ -40,9 +40,73 @@
     overflow-y: auto;
 }
 
+#export-modal {
+    position: fixed !important;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    background: white !important;
+    width: 500px;
+    max-width: 95vw;
+    box-sizing: border-box;
+    padding: 24px 16px 16px 16px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+}
+
+
+
+.export-modal-content {
+    padding: 0;
+}
+
+.modal-title {
+    margin-bottom: 20px !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+}
+
+.save-location-info {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: #495057;
+}
+
+.scene-folder-input {
+    margin-bottom: 16px;
+}
+
+
+
+.modal-cancel-btn {
+    flex: 1;
+    margin-right: 8px;
+}
+
+.modal-save-btn {
+    flex: 1;
+    margin-left: 8px;
+}
+
+.export-status {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
 /* Header Section Styles */
 .header-section {
     margin-bottom: 24px;
+    position: relative;
+    z-index: 10000;
 }
 
 .nvidia-branding {
@@ -56,6 +120,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    position: relative;
+    z-index: 10001;
 }
 
 .nvidia-logo {
@@ -85,13 +151,34 @@
 .status-section {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     justify-content: flex-end;
+    position: relative;
+    z-index: 10001;
+    min-width: 80px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    display: flex !important;
+}
+
+.status-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+}
+
+.status-row > * {
+    flex-shrink: 0 !important;
+    display: inline-block !important;
 }
 
 .status-text {
     color: #22c55e;
     font-weight: 500;
+    white-space: nowrap;
     font-size: 14px;
 }
 
@@ -109,21 +196,73 @@
 }
 
 .toggle-status-btn {
-    background: #f8f9fa !important;
-    border: 1px solid #dee2e6 !important;
+    background: #1e1e1e !important;
+    margin-left: 16px !important;
+    border: 1px solid #404040 !important;
     border-radius: 4px !important;
-    padding: 4px 8px !important;
-    font-size: 14px !important;
-    color: #6c757d !important;
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+    font-family: 'Courier New', 'Monaco', 'Consolas', monospace !important;
+    color: #00ff00 !important;
     cursor: pointer !important;
     transition: all 0.2s ease !important;
-    margin-left: 8px !important;
+    min-width: 32px !important;
+    max-width: 52px !important;
+    width: 42px !important;
+    height: 32px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    line-height: 1 !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+    text-shadow: 0 0 5px rgba(0, 255, 0, 0.5) !important;
 }
 
 .toggle-status-btn:hover {
-    background: #e9ecef !important;
-    border-color: #adb5bd !important;
-    color: #495057 !important;
+    background: #2a2a2a !important;
+    border-color: #00ff00 !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 8px rgba(0, 255, 0, 0.3) !important;
+    transform: scale(1.02);
+}
+
+.toggle-status-btn:active {
+    background: #151515 !important;
+    transform: scale(0.98);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+}
+
+.refresh-status-btn {
+    background: #f3f4f6 !important;
+    margin-left: 16px !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 6px !important;
+    padding: 4px 6px !important;
+    font-size: 12px !important;
+    color: #374151 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    min-width: 30px !important;
+    max-width: 50px !important;
+    width: 40px !important;
+    height: 30px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    line-height: 1 !important;
+}
+
+.refresh-status-btn:hover {
+    background: #e5e7eb !important;
+    border-color: #9ca3af !important;
+    transform: scale(1.02);
+}
+
+.refresh-status-btn:active {
+    transform: scale(0.98);
 }
 
 /* Scene Creation Section */
@@ -141,7 +280,6 @@
     height: 44px;
     box-sizing: border-box;
     text-align: center;
-    margin-left: 16px !important;
 }
 
 .scene-input::placeholder {
@@ -181,7 +319,53 @@
 }
 
 .send-button:active {
-    transform: scale(0.98);
+    transform: scale(0.95);
+}
+
+/* Tip component styles */
+.tip-component {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.tip-message {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #495057;
+}
+
+.tip-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.tip-text {
+    flex: 1;
+    font-weight: 500;
+}
+
+/* Animation for tip appearance */
+.tip-component {
+    animation: tipSlideIn 0.3s ease-out;
+}
+
+@keyframes tipSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Gallery Section Header */
@@ -381,6 +565,15 @@
 }
 
 @media (max-width: 768px) {
+    .header-section .gr-column:first-child {
+        flex: 1 !important;
+    }
+    
+    .header-section .gr-column:last-child {
+        flex: 0 0 auto !important;
+        min-width: 160px !important;
+    }
+    
     .gallery-card {
         min-height: 240px;
         padding: 2px;
@@ -398,6 +591,10 @@
 }
 
 @media (max-width: 480px) {
+    .header-section .gr-column:last-child {
+        min-width: 140px !important;
+    }
+    
     .gallery-card {
         min-height: 220px;
         padding: 1px;
@@ -539,6 +736,7 @@
     border-radius: 6px !important;
     padding: 12px !important;
     margin-top: 8px !important;
+    z-index: 10001 !important;
 }
 
 .status-textarea textarea {
@@ -590,5 +788,111 @@
         padding: 10px 20px !important;
         min-width: 160px !important;
     }
+}
+
+/* Content row fills viewport height minus header; centers landing content */
+.content-row {
+    min-height: calc(100vh - 250px) !important; /* adjust offset for header */
+    width: 100% !important;
+    display: flex !important;
+    align-items: flex-start !important; /* default: top align */
+    justify-content: center !important; /* center horizontally */
+}
+
+/* When landing (chat-only), center vertically */
+.content-row:has(.landing) {
+    align-items: center !important;
+}
+
+/* Landing layout: center chat interface on first screen */
+.landing {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* When workspace is visible, revert to normal flow */
+.landing:has(.workspace-section:not([style*="display: none"])) {
+    justify-content: flex-start;
+    align-items: stretch;
+}
+
+.landing .scene-section {
+    width: 100%;
+    max-width: 900px;
+}
+
+/* Workspace section spacing once revealed */
+.workspace-section {
+    margin-top: 16px;
+}
+
+/* Trim excess top spacing in the app/header */
+body { margin-top: 0 !important; }
+.gradio-container { padding-top: 0 !important; margin-top: 0 !important; }
+.gradio-container .app { padding-top: 0 !important; margin-top: 0 !important; }
+.gradio-container .main { padding-top: 0 !important; margin-top: 0 !important; }
+.gradio-container .block { padding-top: 0 !important; margin-top: 0 !important; }
+.gradio-container .gr-block { padding-top: 0 !important; margin-top: 0 !important; }
+.header-section { margin-top: 0 !important; padding-top: 0 !important; }
+.header-section .gr-row, .header-section .gr-column { margin-top: 0 !important; padding-top: 0 !important; }
+.header-section > * { margin-top: 0 !important; }
+/* Remove residual margins on logo and header HTML blocks */
+.nvidia-logo-container { margin-top: 0 !important; padding-top: 0 !important; }
+.header-section .gr-html { margin-top: 0 !important; padding-top: 0 !important; }
+
+.start-over-btn {
+    background: #f8f9fb !important;
+    border: 1px solid #e5e7eb !important;
+    color: #2563eb !important;
+    font-weight: 500 !important;
+    padding: 6px 10px !important;
+    border-radius: 6px !important;
+    margin-bottom: 8px !important;
+    text-align: left !important;
+}
+.start-over-btn:hover {
+    background: #eef2ff !important;
+    border-color: #c7d2fe !important;
+}
+
+/* LLM spinner overlay */
+.llm-spinner-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255,255,255,0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    pointer-events: none;
+}
+.llm-spinner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #111827;
+    pointer-events: auto;
+}
+.llm-spinner-ring {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #d1fae5;
+    border-top-color: #16a34a;
+    border-radius: 50%;
+    animation: llm-spin 1s linear infinite;
+}
+.llm-spinner-title {
+    font-size: 18px;
+    font-weight: 600;
+}
+.llm-spinner-subtitle {
+    font-size: 12px;
+    color: #6b7280;
+}
+@keyframes llm-spin {
+    to { transform: rotate(360deg); }
 }
 
