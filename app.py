@@ -29,6 +29,8 @@ import config
 import threading
 import subprocess
 import requests
+import gc
+import torch
 from pathlib import Path
 from nim_llm.manager import stop_container
 
@@ -128,6 +130,8 @@ def stop_llm_container():
         success = stop_container()
         _nim_bootstrap_started = False
         if success:
+            gc.collect()
+            torch.cuda.empty_cache()
             print("✅ LLM NIM container stopped and bootstrap reset")
         else:
             print("⚠️ LLM NIM container stop command executed (may not have been running)")

@@ -1,0 +1,6 @@
+transformers==4.50.3
+pynvml
+python-dotenv
+griptape[all]
+gradio
+accelerate
