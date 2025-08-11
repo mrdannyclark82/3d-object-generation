@@ -10,6 +10,9 @@ This is the entry point for the Chat-to-3D application that integrates:
 import gradio as gr
 import os
 import base64
+import signal
+import sys
+import time
 from components.chat_interface import create_chat_interface, handle_scene_description
 from components.image_gallery import create_image_gallery
 from components.blender_export import create_blender_export_section, update_export_section, create_export_modal, open_export_modal, close_export_modal, export_3d_assets_to_folder
@@ -22,10 +25,23 @@ from services.model_3d_service import Model3DService
 import config
 import threading
 import subprocess
-import sys
 import requests
 from pathlib import Path
 from nim_llm.manager import stop_container
+
+# Global flag to track if we're shutting down
+_shutdown_requested = False
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully."""
+    global _shutdown_requested
+    print(f"\n🛑 Received signal {signum}, initiating graceful shutdown...")
+    _shutdown_requested = True
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 # Load custom CSS and JS
 try:
@@ -55,6 +71,7 @@ except FileNotFoundError:
 
 # Background bootstrap for LLM NIM
 _nim_bootstrap_started = False
+_nim_process = None  # Store reference to the LLM NIM process
 
 # Global state to track if we're in workspace mode
 _in_workspace_mode = False
@@ -76,6 +93,7 @@ def _ensure_llm_nim_started():
         pass
 
     def _runner():
+        global _nim_process
         try:
             script_path = Path(__file__).parent / "nim_llm" / "run_llama.py"
             print(f"🚀 Starting LLM NIM via {script_path}")
@@ -84,7 +102,7 @@ def _ensure_llm_nim_started():
                 popen_kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
             else:
                 popen_kwargs["start_new_session"] = True
-            subprocess.Popen([sys.executable, str(script_path)], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, **popen_kwargs)
+            _nim_process = subprocess.Popen([sys.executable, str(script_path)], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, **popen_kwargs)
         except Exception as e:
             print(f"❌ Failed to start LLM NIM: {e}")
 
@@ -100,9 +118,12 @@ def stop_llm_container():
     
     try:
         print("🛑 Stopping LLM NIM container...")
-        stop_container()
+        success = stop_container()
         _nim_bootstrap_started = False
-        print("✅ LLM NIM container stopped and bootstrap reset")
+        if success:
+            print("✅ LLM NIM container stopped and bootstrap reset")
+        else:
+            print("⚠️ LLM NIM container stop command executed (may not have been running)")
     except Exception as e:
         print(f"❌ Error stopping LLM container: {e}")
         _nim_bootstrap_started = False
@@ -539,14 +560,6 @@ def create_app():
             inputs=[gallery_components["data"]],
             outputs=[gallery_components["data"]]
         ).then(
-            fn=gallery_components["shift_card_ui"],
-            inputs=[gallery_components["data"]],
-            outputs=gallery_components["get_all_card_outputs"]()
-        ).then(
-            fn=update_export_section,
-            inputs=[gallery_components["data"]],
-            outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
-        ).then(
             fn=go_to_first_screen,
             inputs=[],
             outputs=[workspace_section, main_col, chat_components["section"], chat_components["input"], export_status, right_panel, in_workspace_mode, health_timer]
@@ -901,14 +914,47 @@ def create_app():
 
 
 if __name__ == "__main__":
+    app = None
     try:
+        print("🚀 Starting Chat-to-3D application...")
         app = create_app()
         app.launch(debug=True, server_name="127.0.0.1", server_port=7860, share=False, quiet=True)
     except KeyboardInterrupt:
-        pass
+        print("\n🛑 Keyboard interrupt received...")
+    except Exception as e:
+        print(f"\n❌ Unexpected error: {e}")
     finally:
+        print("🧹 Cleaning up resources...")
         try:
+            # Stop the LLM NIM process if it's running
+            if _nim_process and _nim_process.poll() is None:
+                print("🛑 Stopping LLM NIM process...")
+                try:
+                    _nim_process.terminate()
+                    _nim_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    print("⚠️ LLM NIM process didn't stop gracefully, forcing...")
+                    _nim_process.kill()
+                except Exception as e:
+                    print(f"⚠️ Error stopping LLM NIM process: {e}")
+            
+            # Stop the LLM NIM container
             print("🛑 Stopping LLM NIM container...")
             stop_llm_container()
-        except Exception:
-            pass 
+            
+            # Give the container a moment to stop
+            time.sleep(2)
+            
+            # Force stop if still running (Windows-specific)
+            if os.name == "nt":
+                try:
+                    subprocess.run(["taskkill", "/f", "/im", "python.exe"], 
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+                except:
+                    pass
+            
+            print("✅ Cleanup completed")
+        except Exception as e:
+            print(f"⚠️ Error during cleanup: {e}")
+        finally:
+            print("👋 Application shutdown complete") 
