@@ -5,6 +5,9 @@ This is the entry point for the Chat-to-3D application that integrates:
 - LLM Agent for scene planning
 - Object gallery UI 
 - 3D generation pipeline
+
+Configuration:
+- ENABLE_STATUS_PANEL: Set to True to enable the status console panel
 """
 
 import gradio as gr
@@ -75,6 +78,10 @@ _nim_process = None  # Store reference to the LLM NIM process
 
 # Global state to track if we're in workspace mode
 _in_workspace_mode = False
+
+# Configuration flag to enable/disable status panel
+# Set to True to enable the status console panel functionality
+ENABLE_STATUS_PANEL = False
 
 def _ensure_llm_nim_started():
     """Start the LLM NIM container in the background if it's not already healthy."""
@@ -225,8 +232,14 @@ def create_app():
                 in_workspace_mode = gr.State(False)
                 
             # Right: Status panel
-            with gr.Column(scale=1, elem_classes=["right-panel"], visible=False) as right_panel:
-                status_components = create_status_panel()
+            # Right: Status panel (conditionally enabled)
+            if ENABLE_STATUS_PANEL:
+                with gr.Column(scale=1, elem_classes=["right-panel"], visible=False) as right_panel:
+                    status_components = create_status_panel()
+            else:
+                # Placeholder for when status panel is disabled
+                right_panel = gr.Column(visible=False)
+                status_components = {"close_btn": gr.Button(visible=False)}
         
         # Wire up the event handlers
         def process_scene_description(scene_description, gallery_data):
@@ -316,7 +329,7 @@ def create_app():
                 gr.update(visible=llm_ready),           # show chat section only if LLM is ready
                 gr.update(value=""),                   # clear chat input
                 gr.update(visible=False),               # hide export status
-                gr.update(visible=False),               # hide right panel if open
+                gr.update(visible=False) if ENABLE_STATUS_PANEL else gr.update(visible=False),  # hide right panel if open
                 False,                                  # set workspace mode to False
                 gr.update(active=True),                 # restart health timer
             )
@@ -565,17 +578,21 @@ def create_app():
             outputs=[workspace_section, main_col, chat_components["section"], chat_components["input"], export_status, right_panel, in_workspace_mode, health_timer]
         )
         
-        # Connect toggle button to show/hide right panel
-        toggle_btn.click(
-            fn=lambda: gr.update(visible=True),
-            outputs=[right_panel]
-        )
-        
-        # Connect close button to hide right panel
-        status_components["close_btn"].click(
-            fn=lambda: gr.update(visible=False),
-            outputs=[right_panel]
-        )
+        # Connect toggle button to show/hide right panel (only if status panel is enabled)
+        if ENABLE_STATUS_PANEL:
+            toggle_btn.click(
+                fn=lambda: gr.update(visible=True),
+                outputs=[right_panel]
+            )
+            
+            # Connect close button to hide right panel
+            status_components["close_btn"].click(
+                fn=lambda: gr.update(visible=False),
+                outputs=[right_panel]
+            )
+        else:
+            # Hide toggle button when status panel is disabled
+            toggle_btn.visible = False
         
         # Modal functionality
         def debug_card_click(path, title, gallery_data, card_idx):

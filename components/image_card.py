@@ -148,10 +148,10 @@ def create_image_card(image_path, title, output_widget, modal_image_title, modal
         
         with gr.Row(elem_classes=["card-actions"]):
             gr.HTML("<div style='flex-grow: 1;'></div>")
-            refresh_btn = gr.Button("🔄", size="sm", min_width=10, elem_classes=["action-btn"])
-            edit_btn = gr.Button("✏️", size="sm", min_width=10, elem_classes=["action-btn"])
-            delete_btn = gr.Button("🗑️", size="sm", min_width=10, elem_classes=["action-btn"])
-            to_3d_btn = gr.Button("→ 3D", size="sm", min_width=10, elem_classes=["action-btn"], elem_id="to-3d-btn")
+            refresh_btn = gr.Button("🔄", size="md", min_width=20, elem_classes=["action-btn"])
+            edit_btn = gr.Button("✏️", size="md", min_width=20, elem_classes=["action-btn"])
+            delete_btn = gr.Button("🗑️", size="md", min_width=20, elem_classes=["action-btn"])
+            to_3d_btn = gr.Button("→ 3D", size="md", min_width=20, elem_classes=["action-btn"], elem_id="to-3d-btn")
             gr.HTML("<div style='flex-grow: 1;'></div>")
 
     # Return the image component and buttons for event binding in app.py

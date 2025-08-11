@@ -45,11 +45,11 @@ CUSTOM_JS_FILE = JS_DIR / "custom.js"
 NVIDIA_LOGO_FILE = IMAGES_DIR / "nvidia_logo.png"
 GENERATING_PLACEHOLDER_FILE = IMAGES_DIR / "generating.svg"
 
-NUM_OF_OBJECTS = 2
+NUM_OF_OBJECTS = 20
 
 # Basic configuration settings
-MAX_CARDS = 2  # Maximum number of cards in gallery
-CARDS_PER_ROW = 2  # Number of cards per row in gallery
+MAX_CARDS = 20  # Maximum number of cards in gallery
+CARDS_PER_ROW = 4  # Number of cards per row in gallery
 VRAM_THRESHOLD = 16  # VRAM threshold in GB for stopping the LLM Agent
 DEFAULT_SEED = 42
 DEFAULT_SPARSE_STEPS = 25
