@@ -20,21 +20,48 @@ def create_chat_interface():
                 )
             with gr.Column(scale=1, min_width=50):
                 send_btn = gr.Button("▶", elem_classes=["send-button"], size="sm")
+        
+        # Tip component for non-scene inputs
+        tip_component = gr.HTML(
+            value="",
+            visible=False,
+            elem_classes=["tip-component"]
+        )
     
     return {
         "section": chat_section,
         "input": scene_input,
-        "send_btn": send_btn
+        "send_btn": send_btn,
+        "tip": tip_component
     }
 
 
 def handle_scene_description(scene_description, agent_service, gallery_data, image_generation_service=None):
     """Handle scene description and generate objects with 2D prompts, then populate gallery with generated images."""
     if not scene_description.strip():
-        return "Please enter a scene description.", gallery_data
+        tip_html = """
+        <div class="tip-message">
+            <span class="tip-icon">💡</span>
+            <span class="tip-text">Please enter a scene description.</span>
+        </div>
+        """
+        return "Please enter a scene description.", gallery_data, tip_html, True
     
     try:
-        # Use the existing generate_objects_and_prompts function which does both
+        # First, classify the input
+        classification, tip_message = agent_service.classify_input(scene_description)
+        
+        # If it's not a scene, show tip and don't proceed with object generation
+        if classification != "SCENE":
+            tip_html = f"""
+            <div class="tip-message">
+                <span class="tip-icon">💡</span>
+                <span class="tip-text">{tip_message}</span>
+            </div>
+            """
+            return "", gallery_data, tip_html, True
+        
+        # If it is a scene, proceed with object generation
         success, prompts, message = agent_service.generate_objects_and_prompts(scene_description)
         
         if success and prompts:
@@ -84,18 +111,27 @@ def handle_scene_description(scene_description, agent_service, gallery_data, ima
                     print(f"❌ Error during image generation: {str(e)}")
             
             # Create LLM-style response with count, subject reiteration, and suggested actions
-            # response = f"{len(prompts)} objects generated for \"{scene_description}\". "
-            # response += "Objects have been added to the gallery with 2D prompts. "
-            # if image_generation_service:
-            #     response += "Images have been automatically generated for all objects. "
             response = f"Review the {len(prompts)} objects and delete any that are not needed. "
             response += "Next step: Generate 3D assets for selected objects."
             
-            return response, new_gallery_data
+            # Hide tip for successful scene processing
+            return response, new_gallery_data, "", False
         else:
             print(f"Error: {message}")
-            return f"Error: {message}", gallery_data
+            tip_html = f"""
+            <div class="tip-message">
+                <span class="tip-icon">⚠️</span>
+                <span class="tip-text">Error: {message}</span>
+            </div>
+            """
+            return f"Error: {message}", gallery_data, tip_html, True
         
     except Exception as e:
         print(f"Error generating objects and prompts: {str(e)}")
-        return f"Error generating objects and prompts: {str(e)}", gallery_data 
+        tip_html = f"""
+        <div class="tip-message">
+            <span class="tip-icon">⚠️</span>
+            <span class="tip-text">Error generating objects and prompts: {str(e)}</span>
+        </div>
+        """
+        return f"Error generating objects and prompts: {str(e)}", gallery_data, tip_html, True 

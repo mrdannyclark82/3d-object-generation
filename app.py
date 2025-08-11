@@ -92,13 +92,19 @@ def _ensure_llm_nim_started():
 
 
 def stop_llm_container():
-    global _nim_bootstrap_started
+    """Stop the LLM container after workspace transition."""
+    # Only proceed if we're in workspace mode (valid scene input)
+    global _in_workspace_mode, _nim_bootstrap_started
+    if not _in_workspace_mode:
+        return
+    
     try:
+        print("🛑 Stopping LLM NIM container...")
         stop_container()
         _nim_bootstrap_started = False
         print("✅ LLM NIM container stopped and bootstrap reset")
     except Exception as e:
-        print(f"❌ Error stopping LLM NIM container: {e}")
+        print(f"❌ Error stopping LLM container: {e}")
         _nim_bootstrap_started = False
 
 def create_app():
@@ -205,22 +211,67 @@ def create_app():
         def process_scene_description(scene_description, gallery_data):
             """Process scene description and generate objects, then update gallery."""
             if not scene_description.strip():
-                return "Please enter a scene description.", gallery_data
+                tip_html = """
+                <div class="tip-message">
+                    <span class="tip-icon">💡</span>
+                    <span class="tip-text">Please enter a scene description.</span>
+                </div>
+                """
+                return "", gallery_data, tip_html, True
             
-            message, new_gallery_data = handle_scene_description(scene_description, agent_service, gallery_data, None)
+            message, new_gallery_data, tip_html, show_tip = handle_scene_description(scene_description, agent_service, gallery_data, None)
             
-            return message, new_gallery_data
+            # If we should show a tip (non-scene input), don't proceed with gallery updates
+            if show_tip:
+                return "", gallery_data, tip_html, True
+            
+            # If it's a valid scene, proceed with normal flow
+            return message, new_gallery_data, "", False
+        
+        def handle_scene_with_conditional_flow(scene_description, gallery_data):
+            """Handle scene processing with conditional workspace transition."""
+            message, new_gallery_data, tip_html, show_tip = process_scene_description(scene_description, gallery_data)
+            
+            # If it's a valid scene, proceed with all the normal flow
+            if not show_tip:
+                # This will trigger the workspace transition
+                return message, new_gallery_data, "", False, True
+            else:
+                # This will just show the tip and stay on first screen
+                return "", gallery_data, tip_html, True, False
+        
+        def handle_scene_input(scene_description, gallery_data):
+            """Handle scene input and proceed with workspace transition."""
+            message, new_gallery_data, tip_html, show_tip, proceed_to_workspace = handle_scene_with_conditional_flow(scene_description, gallery_data)
+            
+            if proceed_to_workspace:
+                # Valid scene - proceed with normal flow, hide tip
+                return message, new_gallery_data, gr.update(value="", visible=False)
+            else:
+                # Non-scene input - don't update gallery, show tip
+                return "", gallery_data, gr.update(value=tip_html, visible=True)
         
         # Helper to reveal workspace and switch layout out of landing mode
-        def reveal_workspace():
+        def reveal_workspace(gallery_data):
             global _in_workspace_mode
+            # Only proceed with workspace transition if there's actual gallery data
+            if not gallery_data or len(gallery_data) == 0:
+                # No gallery data means it was a non-scene input, don't transition
+                return (
+                    gr.update(visible=False),                 # keep workspace hidden
+                    gr.update(elem_classes=["main-content", "landing"]), # keep landing centering
+                    gr.update(visible=True),                  # keep chat section visible
+                    False,                                    # keep workspace mode False
+                )
+            
+            # Valid scene with gallery data - proceed with transition
             _in_workspace_mode = True
             return (
                 gr.update(visible=True),                 # show workspace
                 gr.update(elem_classes=["main-content"]), # remove landing centering
-                gr.update(visible=False),                # hide chat section (override Timer)
+                gr.update(visible=False),                # hide chat section
                 True,                                    # set workspace mode to True
-            ) 
+            )
 
         # Helper to reset all UI/state and return to landing
         def go_to_first_screen():
@@ -233,7 +284,9 @@ def create_app():
                 llm_ready = (resp.status_code == 200)
             except Exception:
                 llm_ready = False
-                #start the llM again
+                
+            #start the llM again
+            if not llm_ready:
                 _ensure_llm_nim_started()
             
             return (
@@ -247,8 +300,30 @@ def create_app():
                 gr.update(active=True),                 # restart health timer
             )
 
+        # New: Mark items as image-generating to disable Start Over immediately
+        def mark_images_generating(gallery_data):
+            if not gallery_data:
+                return gallery_data
+            
+            # Only proceed if we're in workspace mode (valid scene input)
+            global _in_workspace_mode
+            if not _in_workspace_mode:
+                return gallery_data
+            
+            updated_data = []
+            for obj in gallery_data:
+                new_obj = obj.copy()
+                new_obj["image_generating"] = True
+                updated_data.append(new_obj)
+            return updated_data
+        
         # New: Generate images for all objects after moving to workspace
         def generate_images_for_gallery(gallery_data):
+            # Only proceed if we're in workspace mode (valid scene input)
+            global _in_workspace_mode
+            if not _in_workspace_mode:
+                return gallery_data
+                
             try:
                 if not gallery_data:
                     return gallery_data
@@ -294,28 +369,29 @@ def create_app():
                     updated_data.append(new_obj)
                 return updated_data
         
-        # New: Mark items as image-generating to disable Start Over immediately
-        def mark_images_generating(gallery_data):
-            if not gallery_data:
-                return gallery_data
-            updated_data = []
-            for obj in gallery_data:
-                new_obj = obj.copy()
-                new_obj["image_generating"] = True
-                updated_data.append(new_obj)
-            print("⏳ Marked all items as image_generating=True")
-            return updated_data
-        
         # Toggle start-over availability based on processing state
         def update_start_over_state(gallery_data):
-            try:
-                any_processing = any(
-                    (obj.get("3d_generating", False) or obj.get("batch_processing", False) or obj.get("image_generating", False))
-                    for obj in (gallery_data or [])
-                )
-                return gr.update(interactive=not any_processing)
-            except Exception:
-                return gr.update(interactive=True)
+            """Update the Start Over button state based on gallery data."""
+            # Only proceed if we're in workspace mode (valid scene input)
+            global _in_workspace_mode
+            if not _in_workspace_mode:
+                return gr.update(visible=False)
+            
+            if not gallery_data:
+                return gr.update(visible=False)
+            
+            # Check if any items are being processed
+            any_processing = any(
+                obj.get("image_generating", False) or 
+                obj.get("3d_generating", False) or 
+                obj.get("batch_processing", False)
+                for obj in gallery_data
+            )
+            
+            if any_processing:
+                return gr.update(visible=False)  # Hide button during processing
+            else:
+                return gr.update(visible=True)   # Show button when ready
         
         # Health check function for LLM NIM; updates status and controls UI visibility
         def check_llm_health():
@@ -354,9 +430,9 @@ def create_app():
         
         # Connect send button to process scene description
         chat_components["send_btn"].click(
-            fn=process_scene_description,
+            fn=handle_scene_input,
             inputs=[chat_components["input"], gallery_components["data"]],
-            outputs=[chat_components["input"], gallery_components["data"]]
+            outputs=[chat_components["input"], gallery_components["data"], chat_components["tip"]]
         ).then(
             fn=gallery_components["shift_card_ui"],
             inputs=[gallery_components["data"]],
@@ -367,7 +443,7 @@ def create_app():
             outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
         ).then(
             fn=reveal_workspace,
-            inputs=[],
+            inputs=[gallery_components["data"]],
             outputs=[workspace_section, main_col, chat_components["section"], in_workspace_mode]
         ).then(
             fn=mark_images_generating,
@@ -405,9 +481,9 @@ def create_app():
         
         # Connect Enter key for scene input
         chat_components["input"].submit(
-            fn=process_scene_description,
+            fn=handle_scene_input,
             inputs=[chat_components["input"], gallery_components["data"]],
-            outputs=[chat_components["input"], gallery_components["data"]]
+            outputs=[chat_components["input"], gallery_components["data"], chat_components["tip"]]
         ).then(
             fn=gallery_components["shift_card_ui"],
             inputs=[gallery_components["data"]],
@@ -418,7 +494,7 @@ def create_app():
             outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
         ).then(
             fn=reveal_workspace,
-            inputs=[],
+            inputs=[gallery_components["data"]],
             outputs=[workspace_section, main_col, chat_components["section"], in_workspace_mode]
         ).then(
             fn=mark_images_generating,
