@@ -6,7 +6,11 @@ import datetime
 import torch
 import gc
 from diffusers import SanaSprintPipeline
-from PIL import Image
+import time
+
+# Set environment variables for better memory management
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
+os.environ["CUDA_LAUNCH_BLOCKING"] = "0"
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +24,15 @@ class ImageGenerationService:
         """Clear GPU memory to prevent fragmentation."""
         try:
             if torch.cuda.is_available():
+                # More aggressive memory clearing
                 torch.cuda.empty_cache()
                 gc.collect()
-                logger.info("GPU memory cleared")
+                
+                # Get memory info for logging
+                if torch.cuda.is_available():
+                    allocated = torch.cuda.memory_allocated() / 1024**3
+                    reserved = torch.cuda.memory_reserved() / 1024**3
+                    logger.info(f"GPU memory cleared - Allocated: {allocated:.2f}GB, Reserved: {reserved:.2f}GB")
         except Exception as e:
             logger.warning(f"Could not clear GPU memory: {e}")
     
@@ -30,25 +40,37 @@ class ImageGenerationService:
     def load_sana_model(self, force_reload=False):
         """Load the SANA model for image generation with optimizations."""
         try:
+            print(f"🕐 Timestamp before load_sana_model: {time.time()}")
             if self.is_loaded and self.sana_pipeline is not None and not force_reload:
                 logger.info("SANA model already loaded")
                 return True
             
+            print(f"🕐 Timestamp after load_sana_model: {time.time()}")
             # Clear GPU memory before loading
-            self._clear_gpu_memory()
-            
+            self._clear_gpu_memory() 
+            print(f"🕐 Timestamp after clear_gpu_memory: {time.time()}")
             
             logger.info("Loading SANA model...")
+            time.sleep(2)
             
-            # Load model with optimizations
+            initial_time = time.time()
+            # Load model with optimizations and directly to GPU
             self.sana_pipeline = SanaSprintPipeline.from_pretrained(
                 self.model_path,
                 torch_dtype=torch.bfloat16,
-             )
-            
-            # Move to GPU if not already there
+            )
+            print(f"🕐 Timestamp after load_sana_model: {time.time()}")
+            print(f"Time taken to load SANA model: {time.time() - initial_time} seconds")
+            time.sleep(2)
+
+            # Check if model is already on GPU
             if not hasattr(self.sana_pipeline, 'device') or str(self.sana_pipeline.device) == 'cpu':
-                self.sana_pipeline.to("cuda:0")
+                initial_time = time.time()
+                # Move to GPU with memory optimization
+                self.sana_pipeline.to("cuda:0", non_blocking=True)
+                torch.cuda.synchronize()  # Wait for transfer to complete
+                print(f"Time taken to move SANA model to GPU: {time.time() - initial_time} seconds")
+                print(f"🕐 Timestamp after move_sana_model_to_gpu: {time.time()}")
             
             self.is_loaded = True
             logger.info("Successfully loaded SANA model")   

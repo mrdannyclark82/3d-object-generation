@@ -114,10 +114,10 @@ python app.y
 ### Managing the Application
 
 To terminate the application and free VRAM:
-Open a command prompt at the chat-to-3d install directory
+Open a command prompt at the 3d-object-generation install directory
 ```
 conda activate trellis
-cd chat-to-3d-core
+cd 3d-object-generation
 python terminator.py
 ```
 This will:

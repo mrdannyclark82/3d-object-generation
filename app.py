@@ -16,6 +16,8 @@ import base64
 import signal
 import sys
 import time
+import socket
+import logging
 from components.chat_interface import create_chat_interface, handle_scene_description
 from components.image_gallery import create_image_gallery
 from components.blender_export import create_blender_export_section, update_export_section, create_export_modal, open_export_modal, close_export_modal, export_3d_assets_to_folder
@@ -34,14 +36,89 @@ import torch
 from pathlib import Path
 from nim_llm.manager import stop_container
 
+# Set up logging for termination server
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Global flag to track if we're shutting down
 _shutdown_requested = False
 
+# Global termination server thread
+_termination_server_thread = None
+_termination_server_socket = None
+
+class TerminationServer:
+    """Server that listens for termination requests from external clients."""
+    
+    def __init__(self, host='localhost', port=12345):
+        self.host = host
+        self.port = port
+        self.server_socket = None
+        self.running = False
+        
+    def start(self):
+        """Start the termination server in a separate thread."""
+        def handle_termination():
+            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.server_socket.bind((self.host, self.port))
+            self.server_socket.listen(1)
+            self.running = True
+            logger.info(f"Termination server started on {self.host}:{self.port}")
+
+            while self.running:
+                try:
+                    self.server_socket.settimeout(1.0)  # 1 second timeout for accept
+                    conn, addr = self.server_socket.accept()
+                    with conn:
+                        data = conn.recv(1024)
+                        # Handle empty data gracefully
+                        if not data:
+                            logger.debug(f"Empty data received from {addr}, ignoring")
+                            continue
+                        elif data == b'terminate':
+                            logger.info(f"Termination signal received from {addr}")
+                            # Send PID to client
+                            pid = os.getpid()
+                            logger.info(f"Sending PID {pid} to client")
+                            conn.send(f"terminating:{pid}".encode())
+                            # Let client handle the termination
+                            logger.info("PID sent, client will handle termination")
+                        else:
+                            logger.warning(f"Invalid command received: {data}")
+                            conn.send(b'error: invalid command')
+                except socket.timeout:
+                    # Timeout is expected, continue the loop
+                    continue
+                except Exception as e:
+                    if self.running:  # Only log if we're supposed to be running
+                        logger.error(f"Error handling connection: {e}")
+                    break
+
+        self.thread = threading.Thread(target=handle_termination, daemon=True)
+        self.thread.start()
+        
+    def stop(self):
+        """Stop the termination server."""
+        self.running = False
+        if self.server_socket:
+            try:
+                self.server_socket.close()
+            except Exception as e:
+                logger.error(f"Error closing termination server socket: {e}")
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=2)
+
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
-    global _shutdown_requested
+    global _shutdown_requested, _termination_server_thread
     print(f"\n🛑 Received signal {signum}, initiating graceful shutdown...")
     _shutdown_requested = True
+    
+    # Stop the termination server
+    if _termination_server_thread:
+        _termination_server_thread.stop()
+    
     sys.exit(0)
 
 # Register signal handlers
@@ -74,9 +151,11 @@ except FileNotFoundError:
             <span class='nvidia-text'>Chat-to-3D</span> 
             </div>"""
 
-# Background bootstrap for LLM NIM
+# Background bootstrap for LLM and Trellis NIMs
 _nim_bootstrap_started = False
+_trellis_bootstrap_started = False
 _nim_process = None  # Store reference to the LLM NIM process
+_trellis_process = None  # Store reference to the Trellis NIM process
 
 # Global state to track if we're in workspace mode
 _in_workspace_mode = False
@@ -117,27 +196,97 @@ def _ensure_llm_nim_started():
 
     threading.Thread(target=_runner, daemon=True).start()
 
+def _ensure_trellis_nim_started():
+    """Start the Trellis NIM container in the background if it's not already healthy."""
+    global _trellis_bootstrap_started
+    if _trellis_bootstrap_started:
+        return
+    _trellis_bootstrap_started = True
 
-def stop_llm_container():
+    health_url = f"{config.TRELLIS_BASE_URL}/health/ready"
+    try:
+        resp = requests.get(health_url, timeout=1.5)
+        if resp.status_code == 200:
+            print("✅ Trellis NIM already running")
+            return
+    except Exception:
+        pass
+
+    def _runner():
+        global _trellis_process
+        try:
+            script_path = Path(__file__).parent / "nim_trellis" / "run_trellis.py"
+            print(f"🚀 Starting Trellis NIM via {script_path}")
+            popen_kwargs = {}
+            if os.name == "nt":
+                popen_kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            else:
+                popen_kwargs["start_new_session"] = True
+            _trellis_process = subprocess.Popen([sys.executable, str(script_path)], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, **popen_kwargs)
+        except Exception as e:
+            print(f"❌ Failed to start Trellis NIM: {e}")
+
+    threading.Thread(target=_runner, daemon=True).start()
+
+def _ensure_all_nims_started():
+    """Start both LLM and Trellis NIM containers in parallel."""
+    _ensure_llm_nim_started()
+    _ensure_trellis_nim_started()
+
+
+def stop_llm_container(force=False):
     """Stop the LLM container after workspace transition."""
     # Only proceed if we're in workspace mode (valid scene input)
     global _in_workspace_mode, _nim_bootstrap_started
-    if not _in_workspace_mode:
+    if not _in_workspace_mode and not force:
         return
     
     try:
         print("🛑 Stopping LLM NIM container...")
+        print(f"🕐 Timestamp before stop_container: {time.time()}")
         success = stop_container()
+        print(f"🕐 Timestamp after stop_container: {time.time()}")
+        time.sleep(2)
+        gc.collect()
+        torch.cuda.empty_cache()
         _nim_bootstrap_started = False
         if success:
-            gc.collect()
-            torch.cuda.empty_cache()
             print("✅ LLM NIM container stopped and bootstrap reset")
+            print(f"🕐 Timestamp after container stop completion: {time.time()}")
         else:
             print("⚠️ LLM NIM container stop command executed (may not have been running)")
+            print(f"🕐 Timestamp after container stop completion: {time.time()}")
     except Exception as e:
         print(f"❌ Error stopping LLM container: {e}")
+        time.sleep(2)
+        gc.collect()
+        torch.cuda.empty_cache()
         _nim_bootstrap_started = False
+
+def stop_trellis_container(force=True):
+    """Stop the Trellis container after workspace transition."""
+    # Only proceed if we're in workspace mode (valid scene input)
+    global _trellis_bootstrap_started
+ 
+    
+    try:
+        print("🛑 Stopping Trellis NIM container...")
+        from nim_trellis.manager import stop_container as stop_trellis_container_func
+        success = stop_trellis_container_func()
+        time.sleep(2)
+        gc.collect()
+        torch.cuda.empty_cache()
+        _trellis_bootstrap_started = False
+        if success:
+            print("✅ Trellis NIM container stopped and bootstrap reset")
+        else:
+            print("⚠️ Trellis NIM container stop command executed (may not have been running)")
+    except Exception as e:
+        print(f"❌ Error stopping Trellis container: {e}")
+        time.sleep(2)
+        gc.collect()
+        torch.cuda.empty_cache()
+        _trellis_bootstrap_started = False
 
 def create_app():
     """Create and configure the main Gradio application."""
@@ -147,8 +296,20 @@ def create_app():
     image_generation_service = ImageGenerationService()
     model_3d_service = Model3DService()
 
-    # Kick off NIM container in background if needed (non-blocking)
-    _ensure_llm_nim_started()
+    # Kick off both NIM containers in background if needed (non-blocking)
+    _ensure_all_nims_started()
+
+    # Start the termination server
+    termination_server = TerminationServer()
+    global _termination_server_thread
+    _termination_server_thread = termination_server
+    try:
+        termination_server.start()
+        print("✅ Termination server started on localhost:12345")
+    except Exception as e:
+        print(f"⚠️ Failed to start termination server: {e}")
+        print("   External termination requests will not be available")
+        _termination_server_thread = None
 
     with gr.Blocks(
         title="Chat-to-3D", 
@@ -175,14 +336,14 @@ def create_app():
                     refresh_status_btn = gr.Button("🔄", elem_classes=["refresh-status-btn"], size="sm", visible=False)
                     toggle_btn = gr.Button(">", elem_classes=["toggle-status-btn"], size="sm")
             
-        # Global spinner overlay shown until LLM is ready
+        # Global spinner overlay shown until both LLM and Trellis are ready
         llm_spinner = gr.HTML(
             """
             <div class="llm-spinner-overlay">
                 <div class="llm-spinner-content">
                     <div class="llm-spinner-ring"></div>
                     <div>
-                        <div class="llm-spinner-title">Loading LLM model</div>
+                        <div class="llm-spinner-title">Loading LLM and Trellis models</div>
                         <div class="llm-spinner-subtitle">This could take a few minutes...</div>
                     </div>
                 </div>
@@ -315,22 +476,32 @@ def create_app():
         def go_to_first_screen():
             global _in_workspace_mode
             _in_workspace_mode = False
-            # Check if LLM is ready before showing chat
-            health_url = f"{config.AGENT_BASE_URL}/health/ready"
+            # Check if both services are ready before showing chat
+            llm_health_url = f"{config.AGENT_BASE_URL}/health/ready"
+            trellis_health_url = f"{config.TRELLIS_BASE_URL}/health/ready"
+            
             try:
-                resp = requests.get(health_url, timeout=1.0)
-                llm_ready = (resp.status_code == 200)
+                llm_resp = requests.get(llm_health_url, timeout=1.0)
+                llm_ready = (llm_resp.status_code == 200)
             except Exception:
                 llm_ready = False
                 
-            #start the llM again
-            if not llm_ready:
-                _ensure_llm_nim_started()
+            try:
+                trellis_resp = requests.get(trellis_health_url, timeout=1.0)
+                trellis_ready = (trellis_resp.status_code == 200)
+            except Exception:
+                trellis_ready = False
+                
+            both_ready = llm_ready and trellis_ready
+                
+            # Start the services again if not ready
+            if not both_ready:
+                _ensure_all_nims_started()
             
             return (
                 gr.update(visible=False),               # hide workspace
                 gr.update(elem_classes=["main-content", "landing"]),  # restore landing centering
-                gr.update(visible=llm_ready),           # show chat section only if LLM is ready
+                gr.update(visible=both_ready),          # show chat section only if both services are ready
                 gr.update(value=""),                   # clear chat input
                 gr.update(visible=False),               # hide export status
                 gr.update(visible=False) if ENABLE_STATUS_PANEL else gr.update(visible=False),  # hide right panel if open
@@ -357,16 +528,20 @@ def create_app():
         
         # New: Generate images for all objects after moving to workspace
         def generate_images_for_gallery(gallery_data):
+            print(f"🕐 Timestamp before generate_images_for_gallery: {time.time()}")
             # Only proceed if we're in workspace mode (valid scene input)
             global _in_workspace_mode
             if not _in_workspace_mode:
                 return gallery_data
-                
+            
+            print(f"🕐 Timestamp after generate_images_for_gallery: {time.time()}")
             try:
                 if not gallery_data:
                     return gallery_data
                 print("🎨 Generating images for all objects (step 2)...")
+                print(f"🕐 Timestamp before generate_images_for_objects: {time.time()}")
                 success, message, generated_images = image_generation_service.generate_images_for_objects(gallery_data)
+                print(f"🕐 Timestamp after generate_images_for_objects: {time.time()}")
                 if success and generated_images:
                     updated_data = []
                     for obj in gallery_data:
@@ -431,38 +606,61 @@ def create_app():
             else:
                 return gr.update(visible=True)   # Show button when ready
         
-        # Health check function for LLM NIM; updates status and controls UI visibility
-        def check_llm_health():
+        # Health check function for both LLM and Trellis NIMs; updates status and controls UI visibility
+        def check_services_health():
             global _in_workspace_mode
-            health_url = f"{config.AGENT_BASE_URL}/health/ready"
+            
+            # Check LLM health
+            llm_health_url = f"{config.AGENT_BASE_URL}/health/ready"
             try:
-                resp = requests.get(health_url, timeout=1.0)
-                ready = (resp.status_code == 200)
+                llm_resp = requests.get(llm_health_url, timeout=1.0)
+                llm_ready = (llm_resp.status_code == 200)
             except Exception:
-                ready = False
-            status_color = "#16be16" if ready else "#f59e0b"
-            status_label = "LLM: ready" if ready else "LLM: down"
-            status_html = f'<div class="status-section"><span class="status-text" style="color:{status_color}">{status_label}</span></div>'
-            show_spinner = not ready and not _in_workspace_mode
-            # Only show chat when LLM is ready AND we're not in workspace mode
-            show_chat = ready and not _in_workspace_mode
+                llm_ready = False
+            
+            # Check Trellis health
+            trellis_health_url = f"{config.TRELLIS_BASE_URL}/health/ready"
+            try:
+                trellis_resp = requests.get(trellis_health_url, timeout=1.0)
+                trellis_ready = (trellis_resp.status_code == 200)
+            except Exception:
+                trellis_ready = False
+            
+            # Build status display
+            llm_color = "#16be16" if llm_ready else "#f59e0b"
+            trellis_color = "#16be16" if trellis_ready else "#f59e0b"
+            llm_label = "LLM: ready" if llm_ready else "LLM: down"
+            trellis_label = "Trellis: ready" if trellis_ready else "Trellis: down"
+            
+            status_html = f'''
+            <div class="status-section">
+                <span class="status-text" style="color:{llm_color}">{llm_label}</span> | 
+                <span class="status-text" style="color:{trellis_color}">{trellis_label}</span>
+            </div>
+            '''
+            
+            # Both services must be ready to proceed
+            both_ready = llm_ready and trellis_ready
+            show_spinner = not both_ready and not _in_workspace_mode
+            # Only show chat when both services are ready AND we're not in workspace mode
+            show_chat = both_ready and not _in_workspace_mode
             # Show refresh button when in workspace mode, hide when in landing mode
             show_refresh = True
             # Stop timer if we're in workspace mode
             timer_active = not _in_workspace_mode
-            print(f"🔍 Checking LLM health... in_workspace_mode: {_in_workspace_mode} timer_active: {timer_active}")
+            print(f"🔍 Checking services health... LLM: {llm_ready}, Trellis: {trellis_ready}, in_workspace_mode: {_in_workspace_mode} timer_active: {timer_active}")
             return gr.update(visible=show_spinner), gr.update(value=status_html), gr.update(visible=show_chat), gr.update(visible=show_refresh), gr.update(active=timer_active)
         
         # Timer for initial health polling (only active until we reach workspace mode)
         health_timer = gr.Timer(5, active=True)
         health_timer.tick(
-            fn=check_llm_health,
+            fn=check_services_health,
             outputs=[llm_spinner, llm_status, chat_components["section"], refresh_status_btn, health_timer]
         )
         
         # Wire up manual refresh button
         refresh_status_btn.click(
-            fn=check_llm_health,
+            fn=check_services_health,
             outputs=[llm_spinner, llm_status, chat_components["section"], refresh_status_btn, health_timer]
         )
         
@@ -947,6 +1145,15 @@ if __name__ == "__main__":
     finally:
         print("🧹 Cleaning up resources...")
         try:
+            # Stop the termination server
+            if _termination_server_thread:
+                print("🛑 Stopping termination server...")
+                try:
+                    _termination_server_thread.stop()
+                    print("✅ Termination server stopped")
+                except Exception as e:
+                    print(f"⚠️ Error stopping termination server: {e}")
+            
             # Stop the LLM NIM process if it's running
             if _nim_process and _nim_process.poll() is None:
                 print("🛑 Stopping LLM NIM process...")
@@ -959,21 +1166,25 @@ if __name__ == "__main__":
                 except Exception as e:
                     print(f"⚠️ Error stopping LLM NIM process: {e}")
             
-            # Stop the LLM NIM container
-            print("🛑 Stopping LLM NIM container...")
-            stop_llm_container()
-            
-            # Give the container a moment to stop
-            time.sleep(2)
-            
-            # Force stop if still running (Windows-specific)
-            if os.name == "nt":
+            # Stop the Trellis NIM process if it's running
+            if _trellis_process and _trellis_process.poll() is None:
+                print("🛑 Stopping Trellis NIM process...")
                 try:
-                    subprocess.run(["taskkill", "/f", "/im", "python.exe"], 
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-                except:
-                    pass
+                    _trellis_process.terminate()
+                    _trellis_process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    print("⚠️ Trellis NIM process didn't stop gracefully, forcing...")
+                    _trellis_process.kill()
+                except Exception as e:
+                    print(f"⚠️ Error stopping Trellis NIM process: {e}")
             
+            # Stop both NIM containers
+            print("🛑 Stopping LLM NIM container...")
+            stop_llm_container(force=True)
+            
+            print("🛑 Stopping Trellis NIM container...")
+            stop_trellis_container(force=True)
+           
             print("✅ Cleanup completed")
         except Exception as e:
             print(f"⚠️ Error during cleanup: {e}")
