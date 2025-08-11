@@ -282,13 +282,159 @@ echo Blender addon installation completed successfully!
 echo Deactivating conda environment...
 call conda deactivate
 
-echo All tasks completed successfully!
-pause
-echo Blender addon installation completed successfully!
+:: Start LLM and Trellis services
+echo.
+echo ========================================
+echo Starting LLM and Trellis services...
+echo ========================================
+echo This may take several minutes as containers need to download and start...
 
-:: Deactivate conda environment
-echo Deactivating conda environment...
-call conda deactivate
+:: Start LLM service in background
+echo Starting LLM service...
+start /B cmd /c "call conda activate trellis && python nim_llm\run_llama.py"
+if errorlevel 1 (
+    echo [ERROR] Failed to start LLM service!
+    pause
+    exit /b 1
+)
 
-echo All tasks completed successfully!
+:: Wait a moment for LLM service to initialize
+echo Waiting 10 seconds for LLM service to initialize...
+timeout /t 10 /nobreak >nul
+
+:: Start Trellis service in background
+echo Starting Trellis service...
+start /B cmd /c "call conda activate trellis && python nim_trellis\run_trellis.py"
+if errorlevel 1 (
+    echo [ERROR] Failed to start Trellis service!
+    pause
+    exit /b 1
+)
+
+:: Wait a moment for Trellis service to initialize
+echo Waiting 10 seconds for Trellis service to initialize...
+timeout /t 10 /nobreak >nul
+
+:: Check if Python processes are running
+echo Checking if service processes are running...
+tasklist /FI "IMAGENAME eq python.exe" /FO TABLE
+echo.
+
+:: Wait for services to be ready
+echo.
+echo Waiting for services to be ready...
+echo This may take 60-120 minutes for first-time setup...
+
+:: Reactivate conda environment for service checking
+echo Reactivating conda environment for service monitoring...
+call conda activate trellis
+
+set /a attempts=0
+set /a max_attempts=150
+set /a llm_ready=0
+set /a trellis_ready=0
+
+:wait_loop
+set /a attempts+=1
+echo Attempt %attempts%/%max_attempts% - Checking services...
+
+:: Use Python health checker
+python check_services.py
+set check_result=%errorlevel%
+if %check_result% equ 0 (
+    set /a llm_ready=1
+    set /a trellis_ready=1
+    echo ✅ Both services are ready!
+) else if %check_result% equ 1 (
+    if %llm_ready% equ 0 (
+        set /a llm_ready=1
+        echo ✅ LLM service is ready!
+    )
+    echo Trellis service not ready yet...
+) else if %check_result% equ 2 (
+    if %trellis_ready% equ 0 (
+        set /a trellis_ready=1
+        echo ✅ Trellis service is ready!
+    )
+    echo LLM service not ready yet...
+) else (
+    echo Services not ready yet...
+)
+
+:: Check if both services are ready
+if %llm_ready% equ 1 if %trellis_ready% equ 1 (
+    echo.
+    echo 🎉 All services are ready!
+    echo.
+    echo Services running:
+    echo - LLM Service: http://localhost:19002
+    echo - Trellis Service: http://localhost:8000
+    echo.
+    echo.
+    goto :stop_services
+)
+
+:: Check if we've exceeded max attempts
+if %attempts% geq %max_attempts% (
+    echo.
+    echo ⚠️ Timeout waiting for services to be ready
+    echo.
+    echo Current status:
+    if %llm_ready% equ 1 (
+        echo - LLM Service: ✅ Ready
+    ) else (
+        echo - LLM Service: ❌ Not ready
+    )
+    if %trellis_ready% equ 1 (
+        echo - Trellis Service: ✅ Ready
+    ) else (
+        echo - Trellis Service: ❌ Not ready
+    )
+    echo.
+    echo You can check the service logs manually:
+    echo - LLM logs: nim_llm\llama_container.log
+    echo - Trellis logs: nim_trellis\trellis_container.log
+    echo.
+    goto :stop_services
+)
+
+:: Wait 10 seconds before next attempt
+timeout /t 30 /nobreak >nul
+goto :wait_loop
+
+:stop_services
+:: Stop the services automatically
+echo.
+echo Stopping services...
+echo ========================================
+
+:: Stop LLM container
+echo Stopping LLM container...
+call conda run -n trellis --no-capture-output python -c "from nim_llm.manager import stop_container; stop_container()"
+if errorlevel 1 (
+    echo [WARNING] Failed to stop LLM container gracefully
+)
+
+:: Stop Trellis container
+echo Stopping Trellis container...
+call conda run -n trellis --no-capture-output python -c "from nim_trellis.manager import stop_container; stop_container()"
+if errorlevel 1 (
+    echo [WARNING] Failed to stop Trellis container gracefully
+)
+
+:: Kill any remaining Python processes that might be running the services
+echo Stopping Python processes...
+taskkill /f /im python.exe 2>nul
+if errorlevel 1 (
+    echo No Python processes found to stop
+) else (
+    echo Python processes stopped
+)
+
+echo.
+echo ✅ Services stopped successfully!
+echo.
+
+echo Installation completed successfully
+
 pause
