@@ -23,7 +23,7 @@ def stop_container() -> bool:
         else:
             cmd = ["bash", "-lc", f"podman kill {CONTAINER_NAME} || true"]
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=15)
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=5)
         print(result.stdout.strip())
         return result.returncode == 0
     except Exception as e:

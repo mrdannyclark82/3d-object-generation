@@ -12,7 +12,7 @@ import os
 import base64
 from components.chat_interface import create_chat_interface, handle_scene_description
 from components.image_gallery import create_image_gallery
-from components.blender_export import create_blender_export_section, update_export_section, export_3d_assets
+from components.blender_export import create_blender_export_section, update_export_section, create_export_modal, open_export_modal, close_export_modal, export_3d_assets_to_folder
 from components.status_panel import create_status_panel
 from components.modal import create_modal, open_image_settings, close_modal, create_edit_modal
 from components.image_card import create_refresh_handler, create_3d_generation_handler, create_convert_all_3d_handler, invalidate_3d_model
@@ -189,6 +189,10 @@ def create_app():
                 edit_modal, edit_image_title, edit_description, cancel_edit_btn, update_edit_btn = create_edit_modal()
                 edit_modal.visible = False
                 edit_current_index = gr.State(None)
+                
+                # Export modal components
+                export_modal, scene_folder_input, export_cancel_btn, export_save_btn = create_export_modal()
+                export_modal.visible = False
                 
                 # State to track if we're in workspace mode (to prevent health poller from showing chat)
                 in_workspace_mode = gr.State(False)
@@ -794,14 +798,27 @@ def create_app():
             outputs=[start_over_btn]
         )
         
-        # Wire up export button
+        # Wire up export button to open modal
         export_components["export_btn"].click(
-            fn=export_3d_assets,
+            fn=open_export_modal,
             inputs=[gallery_components["data"]],
-            outputs=[export_status]
+            outputs=[export_modal]
+        )
+        
+        # Wire up export modal event handlers
+        export_cancel_btn.click(
+            fn=close_export_modal,
+            outputs=[export_modal, scene_folder_input]
+        )
+        
+        # Wire up save button to export assets
+        export_save_btn.click(
+            fn=export_3d_assets_to_folder,
+            inputs=[gallery_components["data"], scene_folder_input],
+            outputs=[export_modal]
         ).then(
-            fn=lambda: gr.update(visible=True),
-            outputs=[export_status]
+            fn=close_export_modal,
+            outputs=[export_modal, scene_folder_input]
         )
         
     return app
@@ -810,7 +827,7 @@ def create_app():
 if __name__ == "__main__":
     try:
         app = create_app()
-        app.launch(debug=True)
+        app.launch(debug=True, server_name="127.0.0.1", server_port=7860, share=False, quiet=True)
     except KeyboardInterrupt:
         pass
     finally:

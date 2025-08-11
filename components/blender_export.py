@@ -5,6 +5,10 @@ import os
 import base64
 from PIL import Image
 import io
+import zipfile
+import tempfile
+from pathlib import Path
+from config import ASSETS_DIR
 
 def create_blender_export_section():
     """Create the Blender export section interface."""
@@ -162,10 +166,59 @@ def update_export_section(gallery_data):
         gr.update(visible=True)
     )
 
-def export_3d_assets(gallery_data):
-    """Export all 3D assets to a zip file."""
+def create_export_modal():
+    """Create the export modal UI for specifying scene folder name."""
+    with gr.Group(elem_id="export-modal", visible=False) as export_modal:
+        with gr.Column(elem_classes=["export-modal-content"]):
+            gr.Markdown("Export 3D Assets", elem_classes=["modal-title"])
+            
+            # Information about save location
+            gr.Markdown(
+                f"Save Location: {ASSETS_DIR}",
+                elem_classes=["save-location-info"]
+            )
+            
+            # Scene folder name input
+            scene_folder_input = gr.Textbox(
+                label="Scene Folder Name",
+                placeholder="Enter a name for your scene folder (e.g., 'my_scene', 'kitchen_objects')",
+                lines=1,
+                elem_classes=["scene-folder-input"]
+            )
+            
+            # Action buttons
+            with gr.Row():
+                cancel_btn = gr.Button("Cancel", variant="secondary", elem_classes=["modal-cancel-btn"])
+                save_btn = gr.Button("Save & Export", variant="primary", elem_classes=["modal-save-btn"])
+            
+    return export_modal, scene_folder_input, cancel_btn, save_btn
+
+
+
+def open_export_modal(gallery_data):
+    """Open the export modal."""
     if not gallery_data:
-        return "No objects to export."
+        return gr.update(visible=True), "No objects to export."
+    
+    # Filter for objects that have 3D models
+    exportable_objects = []
+    for obj in gallery_data:
+        if obj.get("glb_path") and os.path.exists(obj["glb_path"]):
+            exportable_objects.append(obj)
+    
+    return gr.update(visible=True)
+
+def close_export_modal():
+    """Close the export modal."""
+    return gr.update(visible=False), ""
+
+def export_3d_assets_to_folder(gallery_data, folder_name):
+    """Export all 3D assets to a specified folder within ASSETS_DIR."""
+    if not gallery_data:
+        return gr.update(visible=False)
+    
+    if not folder_name or not folder_name.strip():
+        return gr.update(visible=False)
     
     # Filter for objects that have 3D models
     exportable_objects = []
@@ -174,21 +227,31 @@ def export_3d_assets(gallery_data):
             exportable_objects.append(obj)
     
     if not exportable_objects:
-        return "No 3D objects ready for export."
+        return gr.update(visible=False)
     
     try:
-        import zipfile
-        import tempfile
+        # Create clean folder name
+        clean_folder_name = folder_name.strip().replace(" ", "_")
+        export_dir = ASSETS_DIR / clean_folder_name
         
-        # Create temporary zip file
-        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
-            with zipfile.ZipFile(tmp_file.name, 'w') as zipf:
-                for obj in exportable_objects:
-                    glb_path = obj["glb_path"]
-                    # Use object title as filename in zip
-                    zip_filename = f"{obj['title'].replace(' ', '_')}.glb"
-                    zipf.write(glb_path, zip_filename)
+        # Create the directory if it doesn't exist
+        export_dir.mkdir(parents=True, exist_ok=True)
         
-        return f"Successfully exported {len(exportable_objects)} objects to {tmp_file.name}"
+        # Copy all GLB files to the export directory
+        exported_files = []
+        for obj in exportable_objects:
+            glb_path = Path(obj["glb_path"])
+            if glb_path.exists():
+                # Use object title as filename
+                target_filename = f"{obj['title'].replace(' ', '_')}.glb"
+                target_path = export_dir / target_filename
+                
+                # Copy the file
+                import shutil
+                shutil.copy2(glb_path, target_path)
+                exported_files.append(target_filename)
+        
+        return gr.update(visible=False)
+    
     except Exception as e:
-        return f"Error exporting objects: {str(e)}" 
+        return gr.update(visible=False) 
