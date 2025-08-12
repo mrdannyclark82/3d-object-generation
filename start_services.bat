@@ -21,6 +21,8 @@ if errorlevel 1 (
     exit /b 1
 )
 
+timeout /t 10 /nobreak
+
 :: Start Trellis service in background
 echo Starting Trellis service...
 start /B cmd /c "call conda activate trellis && python nim_trellis\run_trellis.py"
