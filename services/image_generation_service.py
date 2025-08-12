@@ -7,6 +7,7 @@ import torch
 import gc
 from diffusers import SanaSprintPipeline
 import time
+import config
 
 # Set environment variables for better memory management
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
@@ -19,6 +20,7 @@ class ImageGenerationService:
         self.sana_pipeline = None
         self.is_loaded = False
         self.model_path = "Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers"
+        self.device = None
         
     def _clear_gpu_memory(self):
         """Clear GPU memory to prevent fragmentation."""
@@ -31,13 +33,50 @@ class ImageGenerationService:
         except Exception as e:
             logger.warning(f"Could not clear GPU memory: {e}")
     
+    def move_sana_pipeline_to_device(self, device="cuda:0"):
+        """Move SANA pipeline to specified device (GPU or CPU)."""
+        try:
+            if self.sana_pipeline is None:
+                logger.warning("SANA pipeline is not loaded")
+                return False
+            
+            logger.info(f"Moving SANA pipeline to {device}")
+
+
+            if self.device == device:
+                logger.info(f"SANA pipeline is already on {device}")
+                return True
+            
+            # Move pipeline to specified device
+            self.sana_pipeline.to(device)
+            self.device = device
+            
+            # Clear GPU memory after moving to CPU
+            if device == "cpu":
+                self._clear_gpu_memory()
+            
+            logger.info(f"Successfully moved SANA pipeline to {device}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error moving SANA pipeline to {device}: {e}")
+            return False
     
-    def load_sana_model(self, force_reload=False):
+    def move_sana_pipeline_to_gpu(self):
+        """Move SANA pipeline to GPU."""
+        return self.move_sana_pipeline_to_device("cuda:0")
+    
+    def move_sana_pipeline_to_cpu(self):
+        """Move SANA pipeline to CPU."""
+        return self.move_sana_pipeline_to_device("cpu")
+    
+    def load_sana_model(self, device="cuda:0", force_reload=False):
         """Load the SANA model for image generation with optimizations."""
         try:
             print(f"🕐 Timestamp before load_sana_model: {time.time()}")
             if self.is_loaded and self.sana_pipeline is not None and not force_reload:
                 logger.info("SANA model already loaded")
+                self.move_sana_pipeline_to_device(device)
                 return True
             
             print(f"🕐 Timestamp after load_sana_model: {time.time()}")
@@ -46,7 +85,6 @@ class ImageGenerationService:
             print(f"🕐 Timestamp after clear_gpu_memory: {time.time()}")
             
             logger.info("Loading SANA model...")
-            time.sleep(2)
             
             initial_time = time.time()
             # Load model with optimizations and directly to GPU
@@ -56,12 +94,10 @@ class ImageGenerationService:
             )
             print(f"🕐 Timestamp after load_sana_model: {time.time()}")
             print(f"Time taken to load SANA model: {time.time() - initial_time} seconds")
-            time.sleep(2)
-
             
             initial_time = time.time()
             # Move to GPU with memory optimization
-            self.sana_pipeline.to("cuda:0")
+            self.move_sana_pipeline_to_device("cuda:0")
             
             print(f"Time taken to move SANA model to GPU: {time.time() - initial_time} seconds")
             print(f"🕐 Timestamp after move_sana_model_to_gpu: {time.time()}")
@@ -100,6 +136,34 @@ class ImageGenerationService:
                 logger.info("Successfully cleaned up SANA pipeline")
             except Exception as e:
                 logger.error(f"Error during cleanup: {e}")
+
+    def check_gpu_vram_capacity(self, vram_threshold=config.VRAM_THRESHOLD):
+        """Check if the GPU has vram_threshold or less VRAM capacity."""
+        try:
+            if not torch.cuda.is_available():
+                logger.warning("No CUDA-capable GPU found")
+                return False
+                
+            # Get total VRAM capacity in bytes
+            total_vram = torch.cuda.get_device_properties(0).total_memory
+            # Convert to GB
+            total_vram_gb = total_vram / (1024**3)
+            
+            logger.info(f"Total GPU VRAM: {total_vram_gb:.2f} GB")
+            logger.info(f"VRAM threshold: {vram_threshold} GB")
+            logger.info(f"VRAM check result: {total_vram_gb <= vram_threshold}")
+            
+            # Return True if VRAM is vram_threshold or less
+            return total_vram_gb <= vram_threshold
+        except Exception as e:
+            logger.error(f"Error checking GPU VRAM capacity: {e}")
+            return False
+        
+
+    def if_sana_pipeline_movement_required(self, vram_threshold=config.VRAM_THRESHOLD):
+        """Check if the SANA pipeline needs to be moved to GPU or CPU."""
+        return self.check_gpu_vram_capacity(vram_threshold)
+        
     
     def generate_image_from_prompt(self, object_name, prompt, output_dir, seed=42):
         """Generate a single image from a prompt using SANA model."""
