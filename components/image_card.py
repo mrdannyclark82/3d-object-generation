@@ -21,6 +21,14 @@ def invalidate_3d_model(gallery_data, card_idx, object_name, context="image chan
     if "3d_timestamp" in updated_data[card_idx]:
         del updated_data[card_idx]["3d_timestamp"]
     
+    # Clear content filtered state since we have a new image
+    if "content_filtered" in updated_data[card_idx]:
+        print(f"🔄 Clearing content filtered state for '{object_name}' due to {context}")
+        del updated_data[card_idx]["content_filtered"]
+    
+    if "content_filtered_timestamp" in updated_data[card_idx]:
+        del updated_data[card_idx]["content_filtered_timestamp"]
+    
     # Reset 3D generation state to allow new generation
     updated_data[card_idx]["3d_generating"] = False
     
@@ -63,7 +71,7 @@ def create_convert_all_3d_handler(model_3d_service):
             
             # First pass: identify unconverted items and mark them as generating
             for idx, obj in enumerate(updated_data):
-                if not obj.get("glb_path") and not obj.get("3d_generating", False):
+                if not obj.get("glb_path") and not obj.get("3d_generating", False) and not obj.get("content_filtered", False):
                     updated_data[idx]["3d_generating"] = True
                     total_unconverted += 1
                     print(f"  📋 Queued '{obj['title']}' for 3D conversion")
@@ -102,6 +110,12 @@ def create_convert_all_3d_handler(model_3d_service):
                         updated_data[idx]["3d_generating"] = False  # Mark as complete
                         converted_count += 1
                         print(f"  ✅ Successfully converted '{object_name}' to 3D: {glb_path}")
+                    elif message == "CONTENT_FILTERED":
+                        # Handle content filtered case
+                        updated_data[idx]["3d_generating"] = False
+                        updated_data[idx]["content_filtered"] = True
+                        updated_data[idx]["content_filtered_timestamp"] = datetime.datetime.now().isoformat()
+                        print(f"  🚫 Content filtered for '{object_name}' - inappropriate content detected")
                     else:
                         # Mark generation as failed
                         updated_data[idx]["3d_generating"] = False
@@ -280,6 +294,13 @@ def create_3d_generation_handler(model_3d_service):
                 updated_data[card_idx]["3d_timestamp"] = datetime.datetime.now().isoformat()
                 updated_data[card_idx]["3d_generating"] = False  # Mark as complete                
                 print(f"✅ Successfully generated 3D model: {glb_path}")
+                return updated_data
+            elif message == "CONTENT_FILTERED":
+                # Handle content filtered case
+                updated_data[card_idx]["3d_generating"] = False
+                updated_data[card_idx]["content_filtered"] = True
+                updated_data[card_idx]["content_filtered_timestamp"] = datetime.datetime.now().isoformat()
+                print(f"🚫 Content filtered for '{object_name}' - inappropriate content detected")
                 return updated_data
             else:
                 # Mark generation as failed

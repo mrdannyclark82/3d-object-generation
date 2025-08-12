@@ -1,2 +1,5 @@
 # Enforce LF endings for shell scripts (needed for WSL/bash)
 *.sh text eol=lf 
+*.py text eol=lf
+*.js text eol=lf
+*.css text eol=lf

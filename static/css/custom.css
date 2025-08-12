@@ -564,6 +564,28 @@
     opacity: 1 !important;
 }
 
+.action-btn.content-filtered {
+    background-color: #dc2626 !important;
+    color: white !important;
+    border-color: #dc2626 !important;
+    opacity: 1 !important;
+    filter: none !important;
+}
+
+.action-btn.content-filtered:hover {
+    background-color: #dc2626 !important;
+    transform: none !important;
+    opacity: 1 !important;
+}
+
+.action-btn.content-filtered:disabled {
+    background-color: #dc2626 !important;
+    color: white !important;
+    border-color: #dc2626 !important;
+    opacity: 1 !important;
+    filter: none !important;
+}
+
 @media (max-width: 768px) {
     .header-section .gr-column:first-child {
         flex: 1 !important;
