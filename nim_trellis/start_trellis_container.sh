@@ -35,4 +35,5 @@ podman run --name "$CONTAINER_NAME" -it --rm \
     -v "$LOCAL_NIM_CACHE:/opt/nim/.cache" \
     -e NIM_MANIFEST_PROFILE=a7ae7732f732b5a3e3a86a7aba5dd389b8f8707189052a284c0dbf2f92d0fa12 \
     -e NIM_TRITON_REQUEST_TIMEOUT=270000000 \
+    -e NIM_OFFLOADING_POLICY=system_ram \
     nvcr.io/nvstaging/nim/trellis:1.0.0-rc.0-32905293

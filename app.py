@@ -476,6 +476,15 @@ def create_app():
         def go_to_first_screen():
             global _in_workspace_mode
             _in_workspace_mode = False
+            
+            # Clean up SANA pipeline when going back to first screen
+            print("🧹 Cleaning up SANA pipeline...")
+            try:
+                image_generation_service.cleanup_sana_pipeline()
+                print("✅ SANA pipeline cleaned up successfully")
+            except Exception as e:
+                print(f"⚠️ Error cleaning up SANA pipeline: {e}")
+            
             # Check if both services are ready before showing chat
             llm_health_url = f"{config.AGENT_BASE_URL}/health/ready"
             trellis_health_url = f"{config.TRELLIS_BASE_URL}/health/ready"
