@@ -202,6 +202,9 @@ def create_refresh_handler(image_generation_service):
                 output_dir=output_dir,
                 seed=new_seed
             )
+
+            if image_generation_service.if_sana_pipeline_movement_required():
+                image_generation_service.move_sana_pipeline_to_cpu()
             
             if success and new_image_path:
                 # Update the gallery data with the new image path

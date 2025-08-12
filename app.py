@@ -35,6 +35,7 @@ import gc
 import torch
 from pathlib import Path
 from nim_llm.manager import stop_container
+import shutil
 
 # Set up logging for termination server
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -288,6 +289,14 @@ def stop_trellis_container(force=True):
         torch.cuda.empty_cache()
         _trellis_bootstrap_started = False
 
+def delete_assets_dir():
+    """Delete the assets directory."""
+
+    if os.path.exists(config.GENERATED_IMAGES_DIR):
+        shutil.rmtree(config.GENERATED_IMAGES_DIR)
+    if os.path.exists(config.MODELS_DIR):
+        shutil.rmtree(config.MODELS_DIR)
+
 def create_app():
     """Create and configure the main Gradio application."""
     
@@ -295,6 +304,8 @@ def create_app():
     agent_service = AgentService()
     image_generation_service = ImageGenerationService()
     model_3d_service = Model3DService()
+
+    delete_assets_dir()
 
     # Kick off both NIM containers in background if needed (non-blocking)
     _ensure_all_nims_started()
@@ -549,8 +560,11 @@ def create_app():
                     return gallery_data
                 print("🎨 Generating images for all objects (step 2)...")
                 print(f"🕐 Timestamp before generate_images_for_objects: {time.time()}")
-                success, message, generated_images = image_generation_service.generate_images_for_objects(gallery_data)
+                success, message, generated_images = image_generation_service.generate_images_for_objects(gallery_data, output_dir=config.GENERATED_IMAGES_DIR)
                 print(f"🕐 Timestamp after generate_images_for_objects: {time.time()}")
+                if image_generation_service.if_sana_pipeline_movement_required():
+                    image_generation_service.move_sana_pipeline_to_cpu()
+                    print(f"🕐 Timestamp after move_sana_pipeline_to_cpu: {time.time()}")
                 if success and generated_images:
                     updated_data = []
                     for obj in gallery_data:
@@ -1014,18 +1028,22 @@ def create_app():
                     output_dir=config.GENERATED_IMAGES_DIR,
                     seed=new_seed
                 )
+                if image_generation_service.if_sana_pipeline_movement_required():
+                    print(f"🕐 Timestamp after generate_image_from_prompt: {time.time()}")
+                    image_generation_service.move_sana_pipeline_to_cpu()
+                    print(f"🕐 Timestamp after move_sana_pipeline_to_cpu: {time.time()}")
                 
                 if success and new_image_path:
                     # Update the image path and seed
                     updated_data[edit_idx]["path"] = new_image_path
                     updated_data[edit_idx]["seed"] = new_seed
                     
-                                    # Invalidate 3D model using the helper function
-                updated_data = invalidate_3d_model(updated_data, edit_idx, object_name, "image update")
-                
-                # Clear batch processing flag if it was set
-                if "batch_processing" in updated_data[edit_idx]:
-                    del updated_data[edit_idx]["batch_processing"]
+                    # Invalidate 3D model using the helper function
+                    updated_data = invalidate_3d_model(updated_data, edit_idx, object_name, "image update")
+                    
+                    # Clear batch processing flag if it was set
+                    if "batch_processing" in updated_data[edit_idx]:
+                        del updated_data[edit_idx]["batch_processing"]
                     
                     print(f"✅ Successfully generated new image: {new_image_path}")
                 else:
