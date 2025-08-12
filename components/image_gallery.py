@@ -138,6 +138,10 @@ def create_image_gallery():
                         button_text = "✓ 3D"
                         button_interactive = False
                         button_classes = ["action-btn", "three-d-completed"]
+                    elif obj.get("content_filtered"):
+                        button_text = "🚫 3D"
+                        button_interactive = False
+                        button_classes = ["action-btn", "content-filtered"]
                     elif obj.get("3d_generating"):
                         button_text = "⏳ 3D"
                         button_interactive = False
@@ -177,7 +181,8 @@ def create_image_gallery():
             has_unconverted_items = any(
                 idx < len(gallery_data) and 
                 not gallery_data[idx].get("glb_path") and 
-                not gallery_data[idx].get("3d_generating", False)
+                not gallery_data[idx].get("3d_generating", False) and
+                not gallery_data[idx].get("content_filtered", False)
                 for idx in range(len(gallery_data))
             )
             

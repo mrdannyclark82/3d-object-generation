@@ -104,6 +104,7 @@ class Model3DService:
             
         Returns:
             Tuple of (success, message, glb_binary_data)
+            Note: For content filtered responses, success=False and message contains "CONTENT_FILTERED"
         """
         try:
             # Prepare request payload
@@ -126,22 +127,28 @@ class Model3DService:
             )
             
             # Check response status
-            if response.status_code == 200 and response.json()['artifacts'][0]['finishReason'] == "SUCCESS":
-                # Assuming the response contains base64 encoded GLB data
+            if response.status_code == 200:
                 response_data = response.json()
+                finish_reason = response_data['artifacts'][0]['finishReason']
                 
-                # Extract GLB data (adjust key based on actual API response format)
-                glb_base64 = response_data['artifacts'][0]['base64']
+                if finish_reason == "SUCCESS":
+                    # Extract GLB data (adjust key based on actual API response format)
+                    glb_base64 = response_data['artifacts'][0]['base64']
          
-
-                if glb_base64:
-                    # Decode base64 to binary
-                    glb_binary = base64.b64decode(glb_base64)
-                    logger.info("Successfully received 3D model data")
-                    return True, "3D model generated successfully", glb_binary
+                    if glb_base64:
+                        # Decode base64 to binary
+                        glb_binary = base64.b64decode(glb_base64)
+                        logger.info("Successfully received 3D model data")
+                        return True, "3D model generated successfully", glb_binary
+                    else:
+                        logger.error(f"No GLB data found in response: {response_data}")
+                        return False, "No GLB data in API response", None
+                elif finish_reason == "CONTENT_FILTERED":
+                    logger.warning("Content filtered by 3D generation service - inappropriate content detected")
+                    return False, "CONTENT_FILTERED", None
                 else:
-                    #logger.error(f"No GLB data found in response: {response_data}")
-                    return False, "No GLB data in API response", None
+                    logger.error(f"API request failed with finish reason: {finish_reason}")
+                    return False, f"API request failed: {finish_reason}", None
             else:
                 logger.error(f"API request failed with status {response.status_code}: {response.text}")
                 return False, f"API request failed: {response.status_code} - {response.text}", None
@@ -256,6 +263,8 @@ def create_sample_request():
     if success:
         print(f"✅ Success: {message}")
         print(f"📁 GLB file saved to: {glb_path}")
+    elif message == "CONTENT_FILTERED":
+        print(f"🚫 Content filtered: Image contains inappropriate content")
     else:
         print(f"❌ Failed: {message}")
     
