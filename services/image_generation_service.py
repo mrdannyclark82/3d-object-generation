@@ -131,6 +131,7 @@ class ImageGenerationService:
                 del self.sana_pipeline
                 self.sana_pipeline = None
                 self.is_loaded = False
+                self.device = None
 
                 self._clear_gpu_memory()
                 logger.info("Successfully cleaned up SANA pipeline")
