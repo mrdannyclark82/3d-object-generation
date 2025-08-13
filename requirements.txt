@@ -4,3 +4,4 @@ python-dotenv
 griptape[all]
 gradio
 accelerate
+psutil
