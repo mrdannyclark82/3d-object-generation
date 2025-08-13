@@ -9,7 +9,7 @@ from diffusers import SanaSprintPipeline
 import time
 import config
 from services.guardrail_service import GuardrailService
-from utils import clear_image_generation_failure_flags
+from utils import clear_image_generation_failure_flags, check_gpu_vram_capacity
 
 # Set environment variables for better memory management
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
@@ -141,32 +141,12 @@ class ImageGenerationService:
             except Exception as e:
                 logger.error(f"Error during cleanup: {e}")
 
-    def check_gpu_vram_capacity(self, vram_threshold=config.VRAM_THRESHOLD):
-        """Check if the GPU has vram_threshold or less VRAM capacity."""
-        try:
-            if not torch.cuda.is_available():
-                logger.warning("No CUDA-capable GPU found")
-                return False
-                
-            # Get total VRAM capacity in bytes
-            total_vram = torch.cuda.get_device_properties(0).total_memory
-            # Convert to GB
-            total_vram_gb = total_vram / (1024**3)
-            
-            logger.info(f"Total GPU VRAM: {total_vram_gb:.2f} GB")
-            logger.info(f"VRAM threshold: {vram_threshold} GB")
-            logger.info(f"VRAM check result: {total_vram_gb <= vram_threshold}")
-            
-            # Return True if VRAM is vram_threshold or less
-            return total_vram_gb <= vram_threshold
-        except Exception as e:
-            logger.error(f"Error checking GPU VRAM capacity: {e}")
-            return False
+
         
 
-    def if_sana_pipeline_movement_required(self, vram_threshold=config.VRAM_THRESHOLD):
+    def if_sana_pipeline_movement_required(self, vram_threshold=config.VRAM_THRESHOLD_SANA):
         """Check if the SANA pipeline needs to be moved to GPU or CPU."""
-        return self.check_gpu_vram_capacity(vram_threshold)
+        return check_gpu_vram_capacity(vram_threshold)
         
     
     def generate_image_from_prompt(self, object_name, prompt, output_dir, seed=42):

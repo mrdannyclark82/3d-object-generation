@@ -5,7 +5,7 @@ from services.image_generation_service import ImageGenerationService
 from services.model_3d_service import Model3DService
 import datetime
 import config
-from utils import clear_image_generation_failure_flags
+from utils import clear_image_generation_failure_flags, should_disable_buttons_during_3d_generation
 
 def invalidate_3d_model(gallery_data, card_idx, object_name, context="image change"):
     """Invalidate any existing 3D model for a card when the image has changed."""
@@ -52,6 +52,10 @@ def create_convert_all_3d_handler(model_3d_service):
         # Mark all items as being processed in batch mode to disable all buttons
         for idx, obj in enumerate(updated_data):
             updated_data[idx]["batch_processing"] = True
+            
+            # Also mark for global 3D generation if VRAM threshold is met
+            if should_disable_buttons_during_3d_generation():
+                updated_data[idx]["3d_generation_global"] = True
         
         print(f"🔒 Disabled all buttons for {len(gallery_data)} items during batch 3D conversion")
         return updated_data
@@ -81,6 +85,9 @@ def create_convert_all_3d_handler(model_3d_service):
                 # Clear batch_processing flag for all items
                 for idx in range(len(updated_data)):
                     updated_data[idx]["batch_processing"] = False
+                    # Also clear global 3D generation flag
+                    if "3d_generation_global" in updated_data[idx]:
+                        del updated_data[idx]["3d_generation_global"]
                 return updated_data
             
             print(f"🔄 Converting {total_unconverted} items to 3D...")
@@ -124,6 +131,9 @@ def create_convert_all_3d_handler(model_3d_service):
             # Final pass: clear batch_processing flag for all items
             for idx in range(len(updated_data)):
                 updated_data[idx]["batch_processing"] = False
+                # Also clear global 3D generation flag
+                if "3d_generation_global" in updated_data[idx]:
+                    del updated_data[idx]["3d_generation_global"]
             
             print(f"✅ Batch 3D conversion complete: {converted_count}/{total_unconverted} items converted")
             return updated_data
@@ -137,6 +147,9 @@ def create_convert_all_3d_handler(model_3d_service):
                     updated_data[idx]["3d_generating"] = False
                 # Clear batch_processing flag
                 updated_data[idx]["batch_processing"] = False
+                # Clear global 3D generation flag
+                if "3d_generation_global" in updated_data[idx]:
+                    del updated_data[idx]["3d_generation_global"]
             return updated_data
     
     return disable_all_buttons, perform_batch_3d_conversion

@@ -109,8 +109,9 @@ def create_image_gallery():
                     # Check processing states to disable other buttons
                     is_3d_generating = obj.get("3d_generating", False)
                     is_batch_processing = obj.get("batch_processing", False)
+                    is_3d_generation_global = obj.get("3d_generation_global", False)
                     # is_image_generating already computed above
-                    is_processing = is_3d_generating or is_batch_processing or is_image_generating
+                    is_processing = is_3d_generating or is_batch_processing or is_image_generating or is_3d_generation_global
                     
                     # Update refresh button state
                     refresh_interactive = not is_processing

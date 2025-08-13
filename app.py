@@ -37,7 +37,12 @@ import torch
 from pathlib import Path
 from nim_llm.manager import stop_container
 import shutil
-from utils import clear_image_generation_failure_flags
+from utils import (
+    clear_image_generation_failure_flags, 
+    disable_all_buttons_for_3d_generation, 
+    enable_all_buttons_after_3d_generation,
+    is_llm_should_be_stopped
+)
 
 # Set up logging for termination server
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -243,7 +248,9 @@ def stop_llm_container(force=False):
     global _in_workspace_mode, _nim_bootstrap_started
     if not _in_workspace_mode and not force:
         return
-    
+    if not force and not is_llm_should_be_stopped():
+        print("🔒 LLM NIM container is not stopping because VRAM threshold is met")
+        return
     try:
         print("🛑 Stopping LLM NIM container...")
         print(f"🕐 Timestamp before stop_container: {time.time()}")
@@ -436,6 +443,9 @@ def create_app():
             # If we should show a tip (non-scene input), don't proceed with gallery updates
             if show_tip:
                 return "", gallery_data, tip_html, True
+            
+            # reset agent memory
+            agent_service.clear_memory()
             
             # If it's a valid scene, proceed with normal flow
             return message, new_gallery_data, "", False
@@ -933,6 +943,9 @@ def create_app():
                         updated_data[card_idx]["3d_generating"] = True
                         print(f"🔍 DEBUG: Set 3d_generating=True for card {card_idx}")
                         
+                        # Disable all buttons globally if VRAM threshold is met
+                        updated_data = disable_all_buttons_for_3d_generation(updated_data)
+                        
                         # Return the updated data immediately to show "⏳ 3D..." state
                         return updated_data
                     else:
@@ -942,6 +955,10 @@ def create_app():
                 def perform_3d_generation(gallery_data):
                     print(f"🔍 DEBUG: Performing actual 3D generation for card {card_idx}")
                     result = three_d_handler(card_idx, gallery_data)
+                    
+                    # Re-enable all buttons after 3D generation completes (success or failure)
+                    result = enable_all_buttons_after_3d_generation(result)
+                    
                     return result
                 
                 return generate_3d_for_card, perform_3d_generation
