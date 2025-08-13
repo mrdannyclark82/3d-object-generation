@@ -21,9 +21,16 @@ def invalidate_3d_model(gallery_data, card_idx, object_name, context="image chan
     if "3d_timestamp" in updated_data[card_idx]:
         del updated_data[card_idx]["3d_timestamp"]
     
-    # Clear content filtered state since we have a new image
+    # Clear both content filtered states since we have a new image
+    if "prompt_content_filtered" in updated_data[card_idx]:
+        print(f"🔄 Clearing 2D prompt content filtered state for '{object_name}' due to {context}")
+        del updated_data[card_idx]["prompt_content_filtered"]
+    
+    if "prompt_content_filtered_timestamp" in updated_data[card_idx]:
+        del updated_data[card_idx]["prompt_content_filtered_timestamp"]
+    
     if "content_filtered" in updated_data[card_idx]:
-        print(f"🔄 Clearing content filtered state for '{object_name}' due to {context}")
+        print(f"🔄 Clearing 3D content filtered state for '{object_name}' due to {context}")
         del updated_data[card_idx]["content_filtered"]
     
     if "content_filtered_timestamp" in updated_data[card_idx]:
@@ -235,6 +242,22 @@ def create_refresh_handler(image_generation_service):
                 
                 print(f"✅ Successfully refreshed image: {new_image_path}")
                 return updated_data
+            elif message == "PROMPT_CONTENT_FILTERED":
+                # Handle 2D prompt content filtered case
+                updated_data = gallery_data.copy()
+                updated_data[card_idx]["path"] = "static/images/content_filtered.svg"
+                updated_data[card_idx]["prompt_content_filtered"] = True
+                updated_data[card_idx]["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
+                
+                # Invalidate 3D model using the helper function
+                updated_data = invalidate_3d_model(updated_data, card_idx, object_name, "2D prompt content filtered")
+                
+                # Clear batch processing flag if it was set
+                if "batch_processing" in updated_data[card_idx]:
+                    del updated_data[card_idx]["batch_processing"]
+                
+                print(f"🚫 2D prompt content filtered for '{object_name}' - using dummy image")
+                return updated_data
             else:
                 print(f"❌ Failed to refresh image: {message}")
                 return gallery_data
@@ -296,11 +319,11 @@ def create_3d_generation_handler(model_3d_service):
                 print(f"✅ Successfully generated 3D model: {glb_path}")
                 return updated_data
             elif message == "CONTENT_FILTERED":
-                # Handle content filtered case
+                # Handle 3D content filtered case (from model_3d_service)
                 updated_data[card_idx]["3d_generating"] = False
                 updated_data[card_idx]["content_filtered"] = True
                 updated_data[card_idx]["content_filtered_timestamp"] = datetime.datetime.now().isoformat()
-                print(f"🚫 Content filtered for '{object_name}' - inappropriate content detected")
+                print(f"🚫 3D content filtered for '{object_name}' - inappropriate content detected")
                 return updated_data
             else:
                 # Mark generation as failed

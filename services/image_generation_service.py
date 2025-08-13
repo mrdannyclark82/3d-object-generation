@@ -8,6 +8,7 @@ import gc
 from diffusers import SanaSprintPipeline
 import time
 import config
+from services.guardrail_service import GuardrailService
 
 # Set environment variables for better memory management
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
@@ -21,6 +22,7 @@ class ImageGenerationService:
         self.is_loaded = False
         self.model_path = "Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers"
         self.device = None
+        self.guardrail_service = GuardrailService()
         
     def _clear_gpu_memory(self):
         """Clear GPU memory to prevent fragmentation."""
@@ -169,6 +171,15 @@ class ImageGenerationService:
     def generate_image_from_prompt(self, object_name, prompt, output_dir, seed=42):
         """Generate a single image from a prompt using SANA model."""
         try:
+            # First, check content safety using guardrail
+            logger.info(f"Checking content safety for prompt: {prompt[:100]}...")
+            is_safe, safety_message = self.guardrail_service.check_prompt_safety(prompt)
+            
+            if not is_safe:
+                logger.warning(f"2D prompt flagged as inappropriate for {object_name}: {safety_message}")
+                # Return a special flag to indicate 2D prompt content was filtered
+                return False, "PROMPT_CONTENT_FILTERED", None
+            
             if not self.load_sana_model():
                 return False, "Failed to load SANA model", None
             
@@ -213,6 +224,8 @@ class ImageGenerationService:
             os.makedirs(output_dir, exist_ok=True)
             
             generated_images = {}
+            content_filtered_objects = []
+            
             for obj in objects_data:
                 object_name = obj["title"]
                 prompt = obj["description"]
@@ -225,10 +238,19 @@ class ImageGenerationService:
                 if success and image_path:
                     generated_images[object_name] = image_path
                     logger.info(f"Generated image for {object_name}: {image_path}")
+                elif message == "PROMPT_CONTENT_FILTERED":
+                    # Mark object as 2D prompt content filtered
+                    obj["prompt_content_filtered"] = True
+                    content_filtered_objects.append(object_name)
+                    logger.warning(f"2D prompt content filtered for {object_name}")
                 else:
                     logger.error(f"Failed to generate image for {object_name}: {message}")
             
-            return True, f"Generated {len(generated_images)} images", generated_images
+            # Log summary
+            if content_filtered_objects:
+                logger.warning(f"Content filtered objects: {content_filtered_objects}")
+            
+            return True, f"Generated {len(generated_images)} images, {len(content_filtered_objects)} content filtered", generated_images
             
         except Exception as e:
             logger.error(f"Error generating images for objects: {e}")

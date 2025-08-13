@@ -59,7 +59,7 @@ MAX_PROMPT_LENGTH = 50
 LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
-VRAM_THRESHOLD = 16
+VRAM_THRESHOLD = 24
 
 # TRELLIS pipeline settings
 TRELLIS_TEXT_LARGE_MODEL = "JeffreyXiang/TRELLIS-text-large"

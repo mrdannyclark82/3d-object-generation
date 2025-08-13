@@ -18,6 +18,7 @@ import sys
 import time
 import socket
 import logging
+import datetime
 from components.chat_interface import create_chat_interface, handle_scene_description
 from components.image_gallery import create_image_gallery
 from components.blender_export import create_blender_export_section, update_export_section, create_export_modal, open_export_modal, close_export_modal, export_3d_assets_to_folder
@@ -1046,6 +1047,20 @@ def create_app():
                         del updated_data[edit_idx]["batch_processing"]
                     
                     print(f"✅ Successfully generated new image: {new_image_path}")
+                elif message == "PROMPT_CONTENT_FILTERED":
+                    # Handle 2D prompt content filtered case
+                    updated_data[edit_idx]["path"] = "static/images/content_filtered.svg"
+                    updated_data[edit_idx]["prompt_content_filtered"] = True
+                    updated_data[edit_idx]["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
+                    
+                    # Invalidate 3D model using the helper function
+                    updated_data = invalidate_3d_model(updated_data, edit_idx, object_name, "2D prompt content filtered")
+                    
+                    # Clear batch processing flag if it was set
+                    if "batch_processing" in updated_data[edit_idx]:
+                        del updated_data[edit_idx]["batch_processing"]
+                    
+                    print(f"🚫 2D prompt content filtered for '{object_name}' - using dummy image")
                 else:
                     print(f"❌ Failed to generate new image: {message}")
                 
