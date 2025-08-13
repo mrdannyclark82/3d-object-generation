@@ -5,6 +5,7 @@ from services.image_generation_service import ImageGenerationService
 from services.model_3d_service import Model3DService
 import datetime
 import config
+from utils import clear_image_generation_failure_flags
 
 def invalidate_3d_model(gallery_data, card_idx, object_name, context="image change"):
     """Invalidate any existing 3D model for a card when the image has changed."""
@@ -20,14 +21,6 @@ def invalidate_3d_model(gallery_data, card_idx, object_name, context="image chan
     
     if "3d_timestamp" in updated_data[card_idx]:
         del updated_data[card_idx]["3d_timestamp"]
-    
-    # Clear both content filtered states since we have a new image
-    if "prompt_content_filtered" in updated_data[card_idx]:
-        print(f"🔄 Clearing 2D prompt content filtered state for '{object_name}' due to {context}")
-        del updated_data[card_idx]["prompt_content_filtered"]
-    
-    if "prompt_content_filtered_timestamp" in updated_data[card_idx]:
-        del updated_data[card_idx]["prompt_content_filtered_timestamp"]
     
     if "content_filtered" in updated_data[card_idx]:
         print(f"🔄 Clearing 3D content filtered state for '{object_name}' due to {context}")
@@ -226,6 +219,8 @@ def create_refresh_handler(image_generation_service):
 
             if image_generation_service.if_sana_pipeline_movement_required():
                 image_generation_service.move_sana_pipeline_to_cpu()
+
+            invalidate_reason = None
             
             if success and new_image_path:
                 # Update the gallery data with the new image path
@@ -233,15 +228,12 @@ def create_refresh_handler(image_generation_service):
                 updated_data[card_idx]["path"] = new_image_path
                 updated_data[card_idx]["seed"] = new_seed
                 
-                # Invalidate 3D model using the helper function
-                updated_data = invalidate_3d_model(updated_data, card_idx, object_name, "image refresh")
-                
-                # Clear batch processing flag if it was set
-                if "batch_processing" in updated_data[card_idx]:
-                    del updated_data[card_idx]["batch_processing"]
-                
+                # Clear any previous failure flags since image generation succeeded
+                updated_data[card_idx] = clear_image_generation_failure_flags(updated_data[card_idx])
+                 
+                invalidate_reason = "image update"
                 print(f"✅ Successfully refreshed image: {new_image_path}")
-                return updated_data
+                
             elif message == "PROMPT_CONTENT_FILTERED":
                 # Handle 2D prompt content filtered case
                 updated_data = gallery_data.copy()
@@ -249,18 +241,18 @@ def create_refresh_handler(image_generation_service):
                 updated_data[card_idx]["prompt_content_filtered"] = True
                 updated_data[card_idx]["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
                 
-                # Invalidate 3D model using the helper function
-                updated_data = invalidate_3d_model(updated_data, card_idx, object_name, "2D prompt content filtered")
-                
-                # Clear batch processing flag if it was set
-                if "batch_processing" in updated_data[card_idx]:
-                    del updated_data[card_idx]["batch_processing"]
-                
+                invalidate_reason = "2D prompt content filtered"
                 print(f"🚫 2D prompt content filtered for '{object_name}' - using dummy image")
-                return updated_data
+                
             else:
+                updated_data[card_idx]["image_generation_failed"] = True
+                updated_data[card_idx]["image_generation_error"] = message
+                invalidate_reason = "image generation failed"
                 print(f"❌ Failed to refresh image: {message}")
-                return gallery_data
+            updated_data = invalidate_3d_model(updated_data, card_idx, object_name, invalidate_reason)
+            if "batch_processing" in updated_data[card_idx]:
+                del updated_data[card_idx]["batch_processing"]
+            return updated_data
                 
         except Exception as e:
             print(f"❌ Error refreshing image: {str(e)}")

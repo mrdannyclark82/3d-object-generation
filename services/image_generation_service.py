@@ -9,6 +9,7 @@ from diffusers import SanaSprintPipeline
 import time
 import config
 from services.guardrail_service import GuardrailService
+from utils import clear_image_generation_failure_flags
 
 # Set environment variables for better memory management
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
@@ -237,13 +238,20 @@ class ImageGenerationService:
                 
                 if success and image_path:
                     generated_images[object_name] = image_path
+                    # Clear any previous failure flags since image generation succeeded
+                    obj = clear_image_generation_failure_flags(obj)
                     logger.info(f"Generated image for {object_name}: {image_path}")
                 elif message == "PROMPT_CONTENT_FILTERED":
                     # Mark object as 2D prompt content filtered
+                    obj["path"] = "static/images/content_filtered.svg"
                     obj["prompt_content_filtered"] = True
+                    obj["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
                     content_filtered_objects.append(object_name)
                     logger.warning(f"2D prompt content filtered for {object_name}")
                 else:
+                    # Mark object as having failed image generation
+                    obj["image_generation_failed"] = True
+                    obj["image_generation_error"] = message
                     logger.error(f"Failed to generate image for {object_name}: {message}")
             
             # Log summary

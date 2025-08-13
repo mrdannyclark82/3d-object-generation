@@ -37,6 +37,7 @@ import torch
 from pathlib import Path
 from nim_llm.manager import stop_container
 import shutil
+from utils import clear_image_generation_failure_flags
 
 # Set up logging for termination server
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -573,6 +574,8 @@ def create_app():
                         new_obj = obj.copy()
                         if object_name in generated_images:
                             new_obj["path"] = generated_images[object_name]
+                            # Clear any previous failure flags since image generation succeeded
+                            new_obj = clear_image_generation_failure_flags(new_obj)
                             print(f"✅ Generated image for {object_name}: {generated_images[object_name]}")
                         else:
                             print(f"⚠️ No image generated for {object_name}")
@@ -1033,19 +1036,18 @@ def create_app():
                     print(f"🕐 Timestamp after generate_image_from_prompt: {time.time()}")
                     image_generation_service.move_sana_pipeline_to_cpu()
                     print(f"🕐 Timestamp after move_sana_pipeline_to_cpu: {time.time()}")
+
+                invalidate_reason = None
                 
                 if success and new_image_path:
                     # Update the image path and seed
                     updated_data[edit_idx]["path"] = new_image_path
                     updated_data[edit_idx]["seed"] = new_seed
                     
-                    # Invalidate 3D model using the helper function
-                    updated_data = invalidate_3d_model(updated_data, edit_idx, object_name, "image update")
+                    # Clear any previous failure flags since image generation succeeded
+                    updated_data[edit_idx] = clear_image_generation_failure_flags(updated_data[edit_idx])
                     
-                    # Clear batch processing flag if it was set
-                    if "batch_processing" in updated_data[edit_idx]:
-                        del updated_data[edit_idx]["batch_processing"]
-                    
+                    invalidate_reason = "image update"
                     print(f"✅ Successfully generated new image: {new_image_path}")
                 elif message == "PROMPT_CONTENT_FILTERED":
                     # Handle 2D prompt content filtered case
@@ -1053,17 +1055,18 @@ def create_app():
                     updated_data[edit_idx]["prompt_content_filtered"] = True
                     updated_data[edit_idx]["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
                     
-                    # Invalidate 3D model using the helper function
-                    updated_data = invalidate_3d_model(updated_data, edit_idx, object_name, "2D prompt content filtered")
-                    
-                    # Clear batch processing flag if it was set
-                    if "batch_processing" in updated_data[edit_idx]:
-                        del updated_data[edit_idx]["batch_processing"]
-                    
+                    invalidate_reason = "2D prompt content filtered"
                     print(f"🚫 2D prompt content filtered for '{object_name}' - using dummy image")
                 else:
+                    updated_data[edit_idx]["image_generation_failed"] = True
+                    updated_data[edit_idx]["image_generation_error"] = message
+
+                    invalidate_reason = "image generation failed"
                     print(f"❌ Failed to generate new image: {message}")
                 
+                updated_data = invalidate_3d_model(updated_data, edit_idx, object_name, invalidate_reason)
+                if "batch_processing" in updated_data[edit_idx]:
+                    del updated_data[edit_idx]["batch_processing"]
                 return updated_data
             return gallery_data
         

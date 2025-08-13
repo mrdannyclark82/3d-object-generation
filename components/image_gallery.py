@@ -142,6 +142,11 @@ def create_image_gallery():
                         button_text = "🚫 3D"
                         button_interactive = False
                         button_classes = ["action-btn", "content-filtered"]
+                    elif obj.get("image_generation_failed", False) or obj.get("prompt_content_filtered", False):
+                        print(f"-> 3D button disabled for {obj['title']} due to image generation failed or prompt content filtered")
+                        button_text = "→ 3D"
+                        button_interactive = False
+                        button_classes = ["action-btn", "disabled-btn"]
                     elif obj.get("3d_generating"):
                         button_text = "⏳ 3D"
                         button_interactive = False
@@ -182,7 +187,9 @@ def create_image_gallery():
                 idx < len(gallery_data) and 
                 not gallery_data[idx].get("glb_path") and 
                 not gallery_data[idx].get("3d_generating", False) and
-                not gallery_data[idx].get("content_filtered", False)
+                not gallery_data[idx].get("content_filtered", False) and
+                not gallery_data[idx].get("image_generation_failed", False) and
+                not gallery_data[idx].get("prompt_content_filtered", False)
                 for idx in range(len(gallery_data))
             )
             

@@ -42,4 +42,27 @@ def ensure_dir(path):
 
 def get_timestamp():
     """Get current timestamp as string."""
-    return datetime.now().strftime("%Y%m%d_%H%M%S") 
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def clear_image_generation_failure_flags(obj):
+    """
+    Clear image generation failure flags from an object.
+    
+    Args:
+        obj (dict): The object dictionary containing image generation flags
+        
+    Returns:
+        dict: The object with failure flags cleared
+    """
+    # Clear any previous failure flags since image generation succeeded
+    if "image_generation_failed" in obj:
+        del obj["image_generation_failed"]
+    if "image_generation_error" in obj:
+        del obj["image_generation_error"]
+    if "prompt_content_filtered" in obj:
+        del obj["prompt_content_filtered"]
+    if "prompt_content_filtered_timestamp" in obj:
+        del obj["prompt_content_filtered_timestamp"]
+    
+    return obj 
