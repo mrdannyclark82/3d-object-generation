@@ -2,7 +2,6 @@
 
 # Get the NGC API key from the environment variable
 #echo "Using NGC API Key: $NGC_API_KEY"
-export NGC_API_KEY=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
 
 # Ensure NGC_API_KEY is set before running podman
 if [ -z "$NGC_API_KEY" ]; then

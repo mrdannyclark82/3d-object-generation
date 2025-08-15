@@ -33,7 +33,7 @@ class GuardrailService:
             logger.error(f"❌ Failed to load NSFW Prompt Detector model: {e}")
             return False
     
-    def is_dangerous(self, prompt):
+    def is_dangerous(self, prompt, threshold):
         """Check if a prompt violates safety policies."""
         try:
             if not self.load_model():
@@ -49,17 +49,17 @@ class GuardrailService:
             
             logger.info(f"Content safety score for prompt: {score:.4f} (label: {label})")
             
-            return label == "NSFW"
+            return label == "NSFW" and score > threshold
             
         except Exception as e:
             logger.error(f"Error in content safety check: {e}")
             # In case of error, err on the side of caution and flag the content
             return True
     
-    def check_prompt_safety(self, prompt):
+    def check_prompt_safety(self, prompt, threshold=0.85):
         """Check if a prompt is safe for image generation."""
         try:
-            is_violation = self.is_dangerous(prompt)
+            is_violation = self.is_dangerous(prompt, threshold)
             
             if is_violation:
                 logger.warning(f"2D prompt flagged as inappropriate: {prompt[:100]}...")
