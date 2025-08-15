@@ -110,8 +110,9 @@ def create_image_gallery():
                     is_3d_generating = obj.get("3d_generating", False)
                     is_batch_processing = obj.get("batch_processing", False)
                     is_3d_generation_global = obj.get("3d_generation_global", False)
+                    is_image_operations_global = obj.get("image_operations_global", False)
                     # is_image_generating already computed above
-                    is_processing = is_3d_generating or is_batch_processing or is_image_generating or is_3d_generation_global
+                    is_processing = is_3d_generating or is_batch_processing or is_image_generating or is_3d_generation_global or is_image_operations_global
                     
                     # Update refresh button state
                     refresh_interactive = not is_processing
@@ -157,6 +158,10 @@ def create_image_gallery():
                         button_interactive = False
                         button_classes = ["action-btn", "three-d-generating"]
                     elif is_image_generating:
+                        button_text = "→ 3D"
+                        button_interactive = False
+                        button_classes = ["action-btn", "disabled-btn"]
+                    elif is_image_operations_global:
                         button_text = "→ 3D"
                         button_interactive = False
                         button_classes = ["action-btn", "disabled-btn"]

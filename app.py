@@ -41,6 +41,8 @@ from utils import (
     clear_image_generation_failure_flags, 
     disable_all_buttons_for_3d_generation, 
     enable_all_buttons_after_3d_generation,
+    disable_all_buttons_for_image_operations,
+    enable_all_buttons_after_image_operations,
     is_llm_should_be_stopped
 )
 
@@ -914,12 +916,53 @@ def create_app():
         # Wire up refresh button events for each card
         for idx, card in enumerate(gallery_components["card_components"]):
             def create_refresh_function(card_idx):
-                def refresh_specific_card(gallery_data):
-                    return refresh_handler(card_idx, gallery_data)
-                return refresh_specific_card
+                def immediate_disable_buttons(gallery_data):
+                    """First stage: immediately disable all buttons."""
+                    if card_idx < len(gallery_data):
+                        # Create a copy and mark as generating
+                        updated_data = gallery_data.copy()
+                        updated_data[card_idx]["image_generating"] = True
+                        print(f"🔍 DEBUG: Set image_generating=True for card {card_idx}")
+                        
+                        # Disable all buttons globally
+                        updated_data = disable_all_buttons_for_image_operations(updated_data)
+                        
+                        # Return the updated data immediately to show generating state
+                        return updated_data
+                    else:
+                        print(f"🔍 DEBUG: Card index {card_idx} out of range")
+                        return gallery_data
+                
+                def perform_image_refresh(gallery_data):
+                    """Second stage: perform the actual image refresh."""
+                    print(f"🔍 DEBUG: Performing actual image refresh for card {card_idx}")
+                    result = refresh_handler(card_idx, gallery_data)
+                    
+                    # Re-enable all buttons after image refresh completes (success or failure)
+                    result = enable_all_buttons_after_image_operations(result)
+                    
+                    return result
+                
+                return immediate_disable_buttons, perform_image_refresh
             
+            # Create the functions for this specific card
+            immediate_disable_fn, refresh_fn = create_refresh_function(idx)
+            
+            # First click: immediate UI update to disable buttons
             card["refresh_btn"].click(
-                fn=create_refresh_function(idx),
+                fn=immediate_disable_fn,
+                inputs=[gallery_components["data"]],
+                outputs=[gallery_components["data"]]
+            ).then(
+                fn=gallery_components["shift_card_ui"],
+                inputs=[gallery_components["data"]],
+                outputs=gallery_components["get_all_card_outputs"]()
+            ).then(
+                fn=update_start_over_state,              # immediately disable Start Over
+                inputs=[gallery_components["data"]],
+                outputs=[start_over_btn]
+            ).then(
+                fn=refresh_fn,
                 inputs=[gallery_components["data"]],
                 outputs=[gallery_components["data"]]
             ).then(
@@ -930,6 +973,10 @@ def create_app():
                 fn=update_export_section,
                 inputs=[gallery_components["data"]],
                 outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
+            ).then(
+                fn=update_start_over_state,
+                inputs=[gallery_components["data"]],
+                outputs=[start_over_btn]
             )
         
         # Wire up 3D generation button events for each card
@@ -1015,9 +1062,9 @@ def create_app():
             outputs=[edit_modal, edit_current_index, edit_title, edit_description]
         )
         
-        # Update edit button
-        def update_object_description(edit_idx, new_title, new_description, gallery_data):
-            """Update the title and description of an object in the gallery and generate a new image."""
+        # Update edit button - two-stage process
+        def immediate_disable_buttons_for_edit(edit_idx, new_title, new_description, gallery_data):
+            """First stage: immediately disable all buttons when edit update is triggered."""
             if edit_idx is not None and edit_idx < len(gallery_data):
                 # Validate the inputs
                 if not new_title or not new_title.strip():
@@ -1029,71 +1076,113 @@ def create_app():
                     return gallery_data
                 
                 updated_data = gallery_data.copy()
-                obj = updated_data[edit_idx]
-                old_object_name = obj["title"]
                 
-                # Update the title and description
-                updated_data[edit_idx]["title"] = new_title.strip()
-                updated_data[edit_idx]["description"] = new_description.strip()
-
-                # if gallery_data[edit_idx]["description"] == updated_data[edit_idx]["description"] :
-                #     print(f"❌ No change in description for card {edit_idx}")
-                #     return gallery_data
+                # Mark the specific card as generating
+                updated_data[edit_idx]["image_generating"] = True
+                print(f"🔍 DEBUG: Set image_generating=True for edit card {edit_idx}")
                 
-                # Generate a new random seed for the updated prompt
-                import random
-                new_seed = random.randint(1, 999999)
+                # Disable all buttons globally
+                updated_data = disable_all_buttons_for_image_operations(updated_data)
                 
-                print(f"🔄 Updating image for '{new_title}' with new prompt and seed {new_seed}")
-                print(f"   New prompt: {new_description}")
-                
-                # Generate new image using SANA service with the updated prompt
-                success, message, new_image_path = image_generation_service.generate_image_from_prompt(
-                    object_name=new_title.strip(),
-                    prompt=new_description.strip(),
-                    output_dir=config.GENERATED_IMAGES_DIR,
-                    seed=new_seed
-                )
-                if image_generation_service.if_sana_pipeline_movement_required():
-                    print(f"🕐 Timestamp after generate_image_from_prompt: {time.time()}")
-                    image_generation_service.move_sana_pipeline_to_cpu()
-                    print(f"🕐 Timestamp after move_sana_pipeline_to_cpu: {time.time()}")
-
-                invalidate_reason = None
-                
-                if success and new_image_path:
-                    # Update the image path and seed
-                    updated_data[edit_idx]["path"] = new_image_path
-                    updated_data[edit_idx]["seed"] = new_seed
-                    
-                    # Clear any previous failure flags since image generation succeeded
-                    updated_data[edit_idx] = clear_image_generation_failure_flags(updated_data[edit_idx])
-                    
-                    invalidate_reason = "image update"
-                    print(f"✅ Successfully generated new image: {new_image_path}")
-                elif message == "PROMPT_CONTENT_FILTERED":
-                    # Handle 2D prompt content filtered case
-                    updated_data[edit_idx]["path"] = "static/images/content_filtered.svg"
-                    updated_data[edit_idx]["prompt_content_filtered"] = True
-                    updated_data[edit_idx]["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
-                    
-                    invalidate_reason = "2D prompt content filtered"
-                    print(f"🚫 2D prompt content filtered for '{new_title}' - using dummy image")
-                else:
-                    updated_data[edit_idx]["image_generation_failed"] = True
-                    updated_data[edit_idx]["image_generation_error"] = message
-
-                    invalidate_reason = "image generation failed"
-                    print(f"❌ Failed to generate new image: {message}")
-                
-                updated_data = invalidate_3d_model(updated_data, edit_idx, new_title.strip(), invalidate_reason)
-                if "batch_processing" in updated_data[edit_idx]:
-                    del updated_data[edit_idx]["batch_processing"]
+                # Return the updated data immediately to show generating state
                 return updated_data
             return gallery_data
         
+        def perform_edit_update(edit_idx, new_title, new_description, gallery_data):
+            """Second stage: perform the actual edit update and image generation."""
+            try:
+                if edit_idx is not None and edit_idx < len(gallery_data):
+                    updated_data = gallery_data.copy()
+                    obj = updated_data[edit_idx]
+                    old_object_name = obj["title"]
+                    
+                    # Update the title and description
+                    updated_data[edit_idx]["title"] = new_title.strip()
+                    updated_data[edit_idx]["description"] = new_description.strip()
+                    
+                    # Generate a new random seed for the updated prompt
+                    import random
+                    new_seed = random.randint(1, 999999)
+                    
+                    print(f"🔄 Updating image for '{new_title}' with new prompt and seed {new_seed}")
+                    print(f"   New prompt: {new_description}")
+                    
+                    # Generate new image using SANA service with the updated prompt
+                    success, message, new_image_path = image_generation_service.generate_image_from_prompt(
+                        object_name=new_title.strip(),
+                        prompt=new_description.strip(),
+                        output_dir=config.GENERATED_IMAGES_DIR,
+                        seed=new_seed
+                    )
+                    if image_generation_service.if_sana_pipeline_movement_required():
+                        print(f"🕐 Timestamp after generate_image_from_prompt: {time.time()}")
+                        image_generation_service.move_sana_pipeline_to_cpu()
+                        print(f"🕐 Timestamp after move_sana_pipeline_to_cpu: {time.time()}")
+
+                    invalidate_reason = None
+                    
+                    if success and new_image_path:
+                        # Update the image path and seed
+                        updated_data[edit_idx]["path"] = new_image_path
+                        updated_data[edit_idx]["seed"] = new_seed
+                        
+                        # Clear any previous failure flags since image generation succeeded
+                        updated_data[edit_idx] = clear_image_generation_failure_flags(updated_data[edit_idx])
+                        
+                        invalidate_reason = "image update"
+                        print(f"✅ Successfully generated new image: {new_image_path}")
+                    elif message == "PROMPT_CONTENT_FILTERED":
+                        # Handle 2D prompt content filtered case
+                        updated_data[edit_idx]["path"] = "static/images/content_filtered.svg"
+                        updated_data[edit_idx]["prompt_content_filtered"] = True
+                        updated_data[edit_idx]["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
+                        
+                        invalidate_reason = "2D prompt content filtered"
+                        print(f"🚫 2D prompt content filtered for '{new_title}' - using dummy image")
+                    else:
+                        updated_data[edit_idx]["image_generation_failed"] = True
+                        updated_data[edit_idx]["image_generation_error"] = message
+
+                        invalidate_reason = "image generation failed"
+                        print(f"❌ Failed to generate new image: {message}")
+                    
+                    # Clear the image_generating flag since the operation is complete
+                    if "image_generating" in updated_data[edit_idx]:
+                        del updated_data[edit_idx]["image_generating"]
+                    
+                    updated_data = invalidate_3d_model(updated_data, edit_idx, new_title.strip(), invalidate_reason)
+                    if "batch_processing" in updated_data[edit_idx]:
+                        del updated_data[edit_idx]["batch_processing"]
+                    
+                    # Re-enable all buttons after edit update completes (success or failure)
+                    updated_data = enable_all_buttons_after_image_operations(updated_data)
+                    
+                    return updated_data
+                return gallery_data
+            except Exception as e:
+                print(f"❌ Error in edit update: {str(e)}")
+                # Ensure we clear the image_generating flag and re-enable buttons even on exception
+                updated_data = gallery_data.copy()
+                if edit_idx is not None and edit_idx < len(updated_data):
+                    if "image_generating" in updated_data[edit_idx]:
+                        del updated_data[edit_idx]["image_generating"]
+                updated_data = enable_all_buttons_after_image_operations(updated_data)
+                return updated_data
+        
         update_edit_btn.click(
-            fn=update_object_description,
+            fn=immediate_disable_buttons_for_edit,
+            inputs=[edit_current_index, edit_title, edit_description, gallery_components["data"]],
+            outputs=[gallery_components["data"]]
+        ).then(
+            fn=gallery_components["shift_card_ui"],
+            inputs=[gallery_components["data"]],
+            outputs=gallery_components["get_all_card_outputs"]()
+        ).then(
+            fn=update_start_over_state,              # immediately disable Start Over
+            inputs=[gallery_components["data"]],
+            outputs=[start_over_btn]
+        ).then(
+            fn=perform_edit_update,
             inputs=[edit_current_index, edit_title, edit_description, gallery_components["data"]],
             outputs=[gallery_components["data"]]
         ).then(
@@ -1104,6 +1193,10 @@ def create_app():
             fn=update_export_section,
             inputs=[gallery_components["data"]],
             outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
+        ).then(
+            fn=update_start_over_state,
+            inputs=[gallery_components["data"]],
+            outputs=[start_over_btn]
         ).then(
             fn=lambda: (gr.update(visible=False), None, "", ""),
             outputs=[edit_modal, edit_current_index, edit_title, edit_description]

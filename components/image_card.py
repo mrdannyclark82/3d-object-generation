@@ -258,10 +258,16 @@ def create_refresh_handler(image_generation_service):
                 print(f"🚫 2D prompt content filtered for '{object_name}' - using dummy image")
                 
             else:
+                updated_data = gallery_data.copy()
                 updated_data[card_idx]["image_generation_failed"] = True
                 updated_data[card_idx]["image_generation_error"] = message
                 invalidate_reason = "image generation failed"
                 print(f"❌ Failed to refresh image: {message}")
+            
+            # Clear the image_generating flag since the operation is complete
+            if "image_generating" in updated_data[card_idx]:
+                del updated_data[card_idx]["image_generating"]
+            
             updated_data = invalidate_3d_model(updated_data, card_idx, object_name, invalidate_reason)
             if "batch_processing" in updated_data[card_idx]:
                 del updated_data[card_idx]["batch_processing"]
@@ -269,7 +275,11 @@ def create_refresh_handler(image_generation_service):
                 
         except Exception as e:
             print(f"❌ Error refreshing image: {str(e)}")
-            return gallery_data
+            # Ensure we clear the image_generating flag even on exception
+            updated_data = gallery_data.copy()
+            if "image_generating" in updated_data[card_idx]:
+                del updated_data[card_idx]["image_generating"]
+            return updated_data
     
     return refresh_image 
 
