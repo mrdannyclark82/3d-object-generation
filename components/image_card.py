@@ -5,6 +5,7 @@ from services.image_generation_service import ImageGenerationService
 from services.model_3d_service import Model3DService
 import datetime
 import config
+from utils import clear_image_generation_failure_flags, should_disable_buttons_during_3d_generation
 
 def invalidate_3d_model(gallery_data, card_idx, object_name, context="image change"):
     """Invalidate any existing 3D model for a card when the image has changed."""
@@ -21,9 +22,8 @@ def invalidate_3d_model(gallery_data, card_idx, object_name, context="image chan
     if "3d_timestamp" in updated_data[card_idx]:
         del updated_data[card_idx]["3d_timestamp"]
     
-    # Clear content filtered state since we have a new image
     if "content_filtered" in updated_data[card_idx]:
-        print(f"🔄 Clearing content filtered state for '{object_name}' due to {context}")
+        print(f"🔄 Clearing 3D content filtered state for '{object_name}' due to {context}")
         del updated_data[card_idx]["content_filtered"]
     
     if "content_filtered_timestamp" in updated_data[card_idx]:
@@ -52,6 +52,10 @@ def create_convert_all_3d_handler(model_3d_service):
         # Mark all items as being processed in batch mode to disable all buttons
         for idx, obj in enumerate(updated_data):
             updated_data[idx]["batch_processing"] = True
+            
+            # Also mark for global 3D generation if VRAM threshold is met
+            if should_disable_buttons_during_3d_generation():
+                updated_data[idx]["3d_generation_global"] = True
         
         print(f"🔒 Disabled all buttons for {len(gallery_data)} items during batch 3D conversion")
         return updated_data
@@ -81,6 +85,9 @@ def create_convert_all_3d_handler(model_3d_service):
                 # Clear batch_processing flag for all items
                 for idx in range(len(updated_data)):
                     updated_data[idx]["batch_processing"] = False
+                    # Also clear global 3D generation flag
+                    if "3d_generation_global" in updated_data[idx]:
+                        del updated_data[idx]["3d_generation_global"]
                 return updated_data
             
             print(f"🔄 Converting {total_unconverted} items to 3D...")
@@ -124,6 +131,9 @@ def create_convert_all_3d_handler(model_3d_service):
             # Final pass: clear batch_processing flag for all items
             for idx in range(len(updated_data)):
                 updated_data[idx]["batch_processing"] = False
+                # Also clear global 3D generation flag
+                if "3d_generation_global" in updated_data[idx]:
+                    del updated_data[idx]["3d_generation_global"]
             
             print(f"✅ Batch 3D conversion complete: {converted_count}/{total_unconverted} items converted")
             return updated_data
@@ -137,6 +147,9 @@ def create_convert_all_3d_handler(model_3d_service):
                     updated_data[idx]["3d_generating"] = False
                 # Clear batch_processing flag
                 updated_data[idx]["batch_processing"] = False
+                # Clear global 3D generation flag
+                if "3d_generation_global" in updated_data[idx]:
+                    del updated_data[idx]["3d_generation_global"]
             return updated_data
     
     return disable_all_buttons, perform_batch_3d_conversion
@@ -219,6 +232,8 @@ def create_refresh_handler(image_generation_service):
 
             if image_generation_service.if_sana_pipeline_movement_required():
                 image_generation_service.move_sana_pipeline_to_cpu()
+
+            invalidate_reason = None
             
             if success and new_image_path:
                 # Update the gallery data with the new image path
@@ -226,22 +241,45 @@ def create_refresh_handler(image_generation_service):
                 updated_data[card_idx]["path"] = new_image_path
                 updated_data[card_idx]["seed"] = new_seed
                 
-                # Invalidate 3D model using the helper function
-                updated_data = invalidate_3d_model(updated_data, card_idx, object_name, "image refresh")
-                
-                # Clear batch processing flag if it was set
-                if "batch_processing" in updated_data[card_idx]:
-                    del updated_data[card_idx]["batch_processing"]
-                
+                # Clear any previous failure flags since image generation succeeded
+                updated_data[card_idx] = clear_image_generation_failure_flags(updated_data[card_idx])
+                 
+                invalidate_reason = "image update"
                 print(f"✅ Successfully refreshed image: {new_image_path}")
-                return updated_data
+                
+            elif message == "PROMPT_CONTENT_FILTERED":
+                # Handle 2D prompt content filtered case
+                updated_data = gallery_data.copy()
+                updated_data[card_idx]["path"] = "static/images/content_filtered.svg"
+                updated_data[card_idx]["prompt_content_filtered"] = True
+                updated_data[card_idx]["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
+                
+                invalidate_reason = "2D prompt content filtered"
+                print(f"🚫 2D prompt content filtered for '{object_name}' - using dummy image")
+                
             else:
+                updated_data = gallery_data.copy()
+                updated_data[card_idx]["image_generation_failed"] = True
+                updated_data[card_idx]["image_generation_error"] = message
+                invalidate_reason = "image generation failed"
                 print(f"❌ Failed to refresh image: {message}")
-                return gallery_data
+            
+            # Clear the image_generating flag since the operation is complete
+            if "image_generating" in updated_data[card_idx]:
+                del updated_data[card_idx]["image_generating"]
+            
+            updated_data = invalidate_3d_model(updated_data, card_idx, object_name, invalidate_reason)
+            if "batch_processing" in updated_data[card_idx]:
+                del updated_data[card_idx]["batch_processing"]
+            return updated_data
                 
         except Exception as e:
             print(f"❌ Error refreshing image: {str(e)}")
-            return gallery_data
+            # Ensure we clear the image_generating flag even on exception
+            updated_data = gallery_data.copy()
+            if "image_generating" in updated_data[card_idx]:
+                del updated_data[card_idx]["image_generating"]
+            return updated_data
     
     return refresh_image 
 
@@ -296,11 +334,11 @@ def create_3d_generation_handler(model_3d_service):
                 print(f"✅ Successfully generated 3D model: {glb_path}")
                 return updated_data
             elif message == "CONTENT_FILTERED":
-                # Handle content filtered case
+                # Handle 3D content filtered case (from model_3d_service)
                 updated_data[card_idx]["3d_generating"] = False
                 updated_data[card_idx]["content_filtered"] = True
                 updated_data[card_idx]["content_filtered_timestamp"] = datetime.datetime.now().isoformat()
-                print(f"🚫 Content filtered for '{object_name}' - inappropriate content detected")
+                print(f"🚫 3D content filtered for '{object_name}' - inappropriate content detected")
                 return updated_data
             else:
                 # Mark generation as failed

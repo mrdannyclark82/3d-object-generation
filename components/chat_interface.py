@@ -110,6 +110,17 @@ def handle_scene_description(scene_description, agent_service, gallery_data, ima
                 except Exception as e:
                     print(f"❌ Error during image generation: {str(e)}")
             
+            # Handle 2D prompt content filtered cases by setting dummy image paths
+            prompt_content_filtered_count = 0
+            for obj in new_gallery_data:
+                if obj.get("prompt_content_filtered"):
+                    obj["path"] = "static/images/content_filtered.svg"
+                    prompt_content_filtered_count += 1
+                    print(f"🚫 2D prompt content filtered for {obj['title']} - using dummy image")
+            
+            if prompt_content_filtered_count > 0:
+                print(f"🚫 {prompt_content_filtered_count} objects had 2D prompts content filtered")
+            
             # Create LLM-style response with count, subject reiteration, and suggested actions
             response = f"Review the {len(prompts)} objects and delete any that are not needed. "
             response += "Next step: Generate 3D assets for selected objects."

@@ -8,6 +8,8 @@ import gc
 from diffusers import SanaSprintPipeline
 import time
 import config
+from services.guardrail_service import GuardrailService
+from utils import clear_image_generation_failure_flags, check_gpu_vram_capacity
 
 # Set environment variables for better memory management
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
@@ -21,6 +23,7 @@ class ImageGenerationService:
         self.is_loaded = False
         self.model_path = "Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers"
         self.device = None
+        self.guardrail_service = GuardrailService()
         
     def _clear_gpu_memory(self):
         """Clear GPU memory to prevent fragmentation."""
@@ -138,37 +141,26 @@ class ImageGenerationService:
             except Exception as e:
                 logger.error(f"Error during cleanup: {e}")
 
-    def check_gpu_vram_capacity(self, vram_threshold=config.VRAM_THRESHOLD):
-        """Check if the GPU has vram_threshold or less VRAM capacity."""
-        try:
-            if not torch.cuda.is_available():
-                logger.warning("No CUDA-capable GPU found")
-                return False
-                
-            # Get total VRAM capacity in bytes
-            total_vram = torch.cuda.get_device_properties(0).total_memory
-            # Convert to GB
-            total_vram_gb = total_vram / (1024**3)
-            
-            logger.info(f"Total GPU VRAM: {total_vram_gb:.2f} GB")
-            logger.info(f"VRAM threshold: {vram_threshold} GB")
-            logger.info(f"VRAM check result: {total_vram_gb <= vram_threshold}")
-            
-            # Return True if VRAM is vram_threshold or less
-            return total_vram_gb <= vram_threshold
-        except Exception as e:
-            logger.error(f"Error checking GPU VRAM capacity: {e}")
-            return False
+
         
 
-    def if_sana_pipeline_movement_required(self, vram_threshold=config.VRAM_THRESHOLD):
+    def if_sana_pipeline_movement_required(self, vram_threshold=config.VRAM_THRESHOLD_SANA):
         """Check if the SANA pipeline needs to be moved to GPU or CPU."""
-        return self.check_gpu_vram_capacity(vram_threshold)
+        return check_gpu_vram_capacity(vram_threshold)
         
     
     def generate_image_from_prompt(self, object_name, prompt, output_dir, seed=42):
         """Generate a single image from a prompt using SANA model."""
         try:
+            # First, check content safety using guardrail
+            logger.info(f"Checking content safety for prompt: {prompt[:100]}...")
+            is_safe, safety_message = self.guardrail_service.check_prompt_safety(prompt)
+            
+            if not is_safe:
+                logger.warning(f"2D prompt flagged as inappropriate for {object_name}: {safety_message}")
+                # Return a special flag to indicate 2D prompt content was filtered
+                return False, "PROMPT_CONTENT_FILTERED", None
+            
             if not self.load_sana_model():
                 return False, "Failed to load SANA model", None
             
@@ -213,6 +205,8 @@ class ImageGenerationService:
             os.makedirs(output_dir, exist_ok=True)
             
             generated_images = {}
+            content_filtered_objects = []
+            
             for obj in objects_data:
                 object_name = obj["title"]
                 prompt = obj["description"]
@@ -224,11 +218,27 @@ class ImageGenerationService:
                 
                 if success and image_path:
                     generated_images[object_name] = image_path
+                    # Clear any previous failure flags since image generation succeeded
+                    obj = clear_image_generation_failure_flags(obj)
                     logger.info(f"Generated image for {object_name}: {image_path}")
+                elif message == "PROMPT_CONTENT_FILTERED":
+                    # Mark object as 2D prompt content filtered
+                    obj["path"] = "static/images/content_filtered.svg"
+                    obj["prompt_content_filtered"] = True
+                    obj["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
+                    content_filtered_objects.append(object_name)
+                    logger.warning(f"2D prompt content filtered for {object_name}")
                 else:
+                    # Mark object as having failed image generation
+                    obj["image_generation_failed"] = True
+                    obj["image_generation_error"] = message
                     logger.error(f"Failed to generate image for {object_name}: {message}")
             
-            return True, f"Generated {len(generated_images)} images", generated_images
+            # Log summary
+            if content_filtered_objects:
+                logger.warning(f"Content filtered objects: {content_filtered_objects}")
+            
+            return True, f"Generated {len(generated_images)} images, {len(content_filtered_objects)} content filtered", generated_images
             
         except Exception as e:
             logger.error(f"Error generating images for objects: {e}")
