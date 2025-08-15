@@ -50,8 +50,9 @@ NUM_OF_OBJECTS = 20
 # Basic configuration settings
 MAX_CARDS = 20  # Maximum number of cards in gallery
 CARDS_PER_ROW = 4  # Number of cards per row in gallery
-VRAM_THRESHOLD_SANA = 16  # 16 VRAM threshold in GB for stopping the SANA Pipeline
-VRAM_THRESHOLD_LLM = 24  # 32 VRAM threshold in GB for stopping the LLM Agent
+VRAM_THRESHOLD_SANA = 24  # if GPU has <= VRAM_THRESHOLD_SANA, SANA Pipeline will be stopped
+VRAM_THRESHOLD_DISABLE_IMAGE_GEN_DURING_3D_GENERATION = 24  # if GPU has <= VRAM_THRESHOLD_DISABLE_IMAGE_GEN_DURING_3D_GENERATION, image generation will be disabled during 3D generation
+VRAM_THRESHOLD_LLM = 31  # if GPU has > VRAM_THRESHOLD_LLM, LLM Agent will not be stopped
 DEFAULT_SEED = 42
 DEFAULT_SPARSE_STEPS = 25
 DEFAULT_SLAT_STEPS = 25

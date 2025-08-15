@@ -405,7 +405,7 @@ def create_app():
                 settings_modal.visible = False
                 
                 # Edit modal components
-                edit_modal, edit_image_title, edit_description, cancel_edit_btn, update_edit_btn = create_edit_modal()
+                edit_modal, edit_title, edit_description, cancel_edit_btn, update_edit_btn = create_edit_modal()
                 edit_modal.visible = False
                 edit_current_index = gr.State(None)
                 
@@ -885,11 +885,11 @@ def create_app():
                 return (
                     gr.update(visible=True),  # Show modal
                     idx,                     # Set current index
-                    f"### Edit {item['title']}",  # Modal title
+                    item["title"],           # Populate title
                     item["description"]      # Populate description
                 )
             else:
-                return (gr.update(visible=True), idx, "### Edit", "")
+                return (gr.update(visible=True), idx, "", "")
         
         # Create refresh handler
         refresh_handler = create_refresh_handler(image_generation_service)
@@ -1006,29 +1006,34 @@ def create_app():
             card["edit_btn"].click(
                 fn=open_edit_modal,
                 inputs=[gr.State(idx), gallery_components["data"]],
-                outputs=[edit_modal, edit_current_index, edit_image_title, edit_description]
+                outputs=[edit_modal, edit_current_index, edit_title, edit_description]
             )
         
         # Cancel edit button
         cancel_edit_btn.click(
             fn=lambda: (gr.update(visible=False), None, "", ""),
-            outputs=[edit_modal, edit_current_index, edit_image_title, edit_description]
+            outputs=[edit_modal, edit_current_index, edit_title, edit_description]
         )
         
         # Update edit button
-        def update_object_description(edit_idx, new_description, gallery_data):
-            """Update the description of an object in the gallery and generate a new image."""
+        def update_object_description(edit_idx, new_title, new_description, gallery_data):
+            """Update the title and description of an object in the gallery and generate a new image."""
             if edit_idx is not None and edit_idx < len(gallery_data):
-                # Validate the new description
+                # Validate the inputs
+                if not new_title or not new_title.strip():
+                    print(f"❌ Empty title provided for card {edit_idx}")
+                    return gallery_data
+                
                 if not new_description or not new_description.strip():
                     print(f"❌ Empty description provided for card {edit_idx}")
                     return gallery_data
                 
                 updated_data = gallery_data.copy()
                 obj = updated_data[edit_idx]
-                object_name = obj["title"]
+                old_object_name = obj["title"]
                 
-                # Update the description
+                # Update the title and description
+                updated_data[edit_idx]["title"] = new_title.strip()
                 updated_data[edit_idx]["description"] = new_description.strip()
 
                 # if gallery_data[edit_idx]["description"] == updated_data[edit_idx]["description"] :
@@ -1039,12 +1044,12 @@ def create_app():
                 import random
                 new_seed = random.randint(1, 999999)
                 
-                print(f"🔄 Updating image for '{object_name}' with new prompt and seed {new_seed}")
+                print(f"🔄 Updating image for '{new_title}' with new prompt and seed {new_seed}")
                 print(f"   New prompt: {new_description}")
                 
                 # Generate new image using SANA service with the updated prompt
                 success, message, new_image_path = image_generation_service.generate_image_from_prompt(
-                    object_name=object_name,
+                    object_name=new_title.strip(),
                     prompt=new_description.strip(),
                     output_dir=config.GENERATED_IMAGES_DIR,
                     seed=new_seed
@@ -1073,7 +1078,7 @@ def create_app():
                     updated_data[edit_idx]["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
                     
                     invalidate_reason = "2D prompt content filtered"
-                    print(f"🚫 2D prompt content filtered for '{object_name}' - using dummy image")
+                    print(f"🚫 2D prompt content filtered for '{new_title}' - using dummy image")
                 else:
                     updated_data[edit_idx]["image_generation_failed"] = True
                     updated_data[edit_idx]["image_generation_error"] = message
@@ -1081,7 +1086,7 @@ def create_app():
                     invalidate_reason = "image generation failed"
                     print(f"❌ Failed to generate new image: {message}")
                 
-                updated_data = invalidate_3d_model(updated_data, edit_idx, object_name, invalidate_reason)
+                updated_data = invalidate_3d_model(updated_data, edit_idx, new_title.strip(), invalidate_reason)
                 if "batch_processing" in updated_data[edit_idx]:
                     del updated_data[edit_idx]["batch_processing"]
                 return updated_data
@@ -1089,7 +1094,7 @@ def create_app():
         
         update_edit_btn.click(
             fn=update_object_description,
-            inputs=[edit_current_index, edit_description, gallery_components["data"]],
+            inputs=[edit_current_index, edit_title, edit_description, gallery_components["data"]],
             outputs=[gallery_components["data"]]
         ).then(
             fn=gallery_components["shift_card_ui"],
@@ -1101,7 +1106,7 @@ def create_app():
             outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
         ).then(
             fn=lambda: (gr.update(visible=False), None, "", ""),
-            outputs=[edit_modal, edit_current_index, edit_image_title, edit_description]
+            outputs=[edit_modal, edit_current_index, edit_title, edit_description]
         )
         
         # Wire up delete button events for each card

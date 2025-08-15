@@ -57,15 +57,18 @@ def create_modal():
     return settings_modal, modal_image_title, close_btn, modal_image, modal_3d, no_3d_message
 
 def create_edit_modal():
-    """Create a modal for editing image description."""
+    """Create a modal for editing image title and description."""
     with gr.Group(elem_id="edit-modal") as edit_modal:
-        edit_image_title = gr.Markdown("### Edit Image")
+        edit_title = gr.Textbox(
+            label="", 
+            placeholder="Enter image title..."
+        )
         edit_description = gr.Textbox(
-            label="Description", 
+            label="", 
             lines=5, 
             placeholder="Enter a detailed description for the image generation..."
         )
         with gr.Row():
             cancel_btn = gr.Button("Cancel", elem_id="cancel-edit-btn", variant="secondary")
             update_btn = gr.Button("Update & Generate", elem_id="update-edit-btn", variant="secondary")
-    return edit_modal, edit_image_title, edit_description, cancel_btn, update_btn 
+    return edit_modal, edit_title, edit_description, cancel_btn, update_btn 

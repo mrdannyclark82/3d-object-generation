@@ -96,10 +96,10 @@ def check_gpu_vram_capacity(vram_threshold):
 
 def is_llm_should_be_stopped(vram_threshold = config.VRAM_THRESHOLD_LLM):
     """Check if the LLM should be stopped."""
-    return not check_gpu_vram_capacity(vram_threshold)
+    return check_gpu_vram_capacity(vram_threshold)
 
 
-def should_disable_buttons_during_3d_generation(vram_threshold = config.VRAM_THRESHOLD_SANA):
+def should_disable_buttons_during_3d_generation(vram_threshold = config.VRAM_THRESHOLD_DISABLE_IMAGE_GEN_DURING_3D_GENERATION):
     """Check if buttons should be disabled during 3D generation based on VRAM threshold."""
     return check_gpu_vram_capacity(vram_threshold)
 
