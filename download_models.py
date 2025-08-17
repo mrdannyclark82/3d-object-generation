@@ -2,6 +2,7 @@ import torch
 import gc
 
 from diffusers import SanaSprintPipeline
+from transformers import pipeline
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,6 +22,14 @@ def download_models():
         gc.collect()
         torch.cuda.empty_cache()
         logger.info("Sana Sprint model downloaded successfully!")
+        
+        # Download Guardrail model (NSFW Prompt Detector)
+        logger.info("Downloading NSFW Prompt Detector model...")
+        guardrail_pipe = pipeline("text-classification", model="ezb/NSFW-Prompt-Detector")
+        del guardrail_pipe
+        gc.collect()
+        torch.cuda.empty_cache()
+        logger.info("NSFW Prompt Detector model downloaded successfully!")
         
         logger.info("All models downloaded successfully!")
         return True
