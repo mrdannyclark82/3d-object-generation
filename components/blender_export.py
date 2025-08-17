@@ -172,9 +172,10 @@ def create_export_modal():
         with gr.Column(elem_classes=["export-modal-content"]):
             gr.Markdown("Export 3D Assets", elem_classes=["modal-title"])
             
+            display_path = str(ASSETS_DIR).replace("\\", "\\\\")
             # Information about save location
             gr.Markdown(
-                f"Save Location: {ASSETS_DIR}",
+                f'Save Location: {display_path}',
                 elem_classes=["save-location-info"]
             )
             

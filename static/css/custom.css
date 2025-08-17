@@ -106,7 +106,7 @@
 .header-section {
     margin-bottom: 24px;
     position: relative;
-    z-index: 10000;
+    /* z-index: 10000; */
 }
 
 .nvidia-branding {
@@ -589,27 +589,27 @@
 /* Custom tooltip for content-filtered 3D button */
 .action-btn.content-filtered {
     position: relative !important;
-    z-index: 100000 !important;
+    /* z-index: 100000 !important; */
 }
 
 .action-btn.content-filtered::after {
-    content: "Content flagged as inappropriate - 3D conversion disabled" !important;
+    content: "Content flagged as inappropriate - no 3D" !important;
     position: absolute !important;
     bottom: 130% !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
+    right: 80% !important;
+    transform: none !important;
     background-color: #333 !important;
     color: white !important;
     padding: 6px 10px !important;
     border-radius: 4px !important;
     font-size: 11px !important;
     white-space: nowrap !important;
-    z-index: 100001 !important;
+    /* z-index: 100001 !important; */
     opacity: 0 !important;
     visibility: hidden !important;
     transition: opacity 0.2s ease, visibility 0.2s ease !important;
     pointer-events: none !important;
-    max-width: 200px !important;
+    max-width: 400px !important;
     text-align: center !important;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
     line-height: 1.2 !important;
@@ -619,15 +619,15 @@
     content: "" !important;
     position: absolute !important;
     bottom: 120% !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
+    right: 90% !important;
+    transform: none !important;
     border: 4px solid transparent !important;
     border-top-color: #333 !important;
     opacity: 0 !important;
     visibility: hidden !important;
     transition: opacity 0.2s ease, visibility 0.2s ease !important;
     pointer-events: none !important;
-    z-index: 100001 !important;
+    /* z-index: 100001 !important; */
 }
 
 .action-btn.content-filtered:hover::after,
@@ -980,4 +980,3 @@ body { margin-top: 0 !important; }
 @keyframes llm-spin {
     to { transform: rotate(360deg); }
 }
-
