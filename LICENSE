@@ -199,3 +199,13 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+ATTRIBUTIONS : 
+The blueprint uses the below OSS software. Please refer to the licenses of these OSS Software before use and distribution. 
+transformers: [Apache License 2.0](https://github.com/huggingface/transformers/blob/main/LICENSE)
+pynvml: [BSD License](https://pypi.org/project/nvidia-ml-py/)
+python-dotenv: [BSD-3-Clause License](https://github.com/theskumar/python-dotenv/blob/master/LICENSE)
+griptape: [Apache License 2.0](https://github.com/griptape-ai/griptape/blob/main/LICENSE)
+gradio: [Apache License 2.0](https://github.com/gradio-app/gradio/blob/main/LICENSE)
+accelerate: [Apache License 2.0](https://github.com/huggingface/accelerate/blob/main/LICENSE)
+psutil: [BSD License](https://github.com/giampaolo/psutil/blob/master/LICENSE)
