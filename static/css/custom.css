@@ -253,6 +253,7 @@
     justify-content: center !important;
     text-align: center !important;
     line-height: 1 !important;
+    z-index: 100001 !important;
 }
 
 .refresh-status-btn:hover {

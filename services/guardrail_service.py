@@ -56,7 +56,7 @@ class GuardrailService:
             # In case of error, err on the side of caution and flag the content
             return True
     
-    def check_prompt_safety(self, prompt, threshold=0.85):
+    def check_prompt_safety(self, prompt, threshold=0.9):
         """Check if a prompt is safe for image generation."""
         try:
             is_violation = self.is_dangerous(prompt, threshold)
