@@ -414,9 +414,9 @@ def create_app():
                 # Export modal components
                 export_modal, scene_folder_input, export_cancel_btn, export_save_btn = create_export_modal()
                 export_modal.visible = False
-                
-                # State to track if we're in workspace mode (to prevent health poller from showing chat)
-                in_workspace_mode = gr.State(False)
+                   
+                # Session state to track legitimate transitions for browser refresh detection
+                session_transition_counter = gr.State(0)
                 
             # Right: Status panel
             # Right: Status panel (conditionally enabled)
@@ -476,7 +476,7 @@ def create_app():
                 return "", gallery_data, gr.update(value=tip_html, visible=True)
         
         # Helper to reveal workspace and switch layout out of landing mode
-        def reveal_workspace(gallery_data):
+        def reveal_workspace(gallery_data, current_counter):
             global _in_workspace_mode
             # Only proceed with workspace transition if there's actual gallery data
             if not gallery_data or len(gallery_data) == 0:
@@ -486,15 +486,18 @@ def create_app():
                     gr.update(elem_classes=["main-content", "landing"]), # keep landing centering
                     gr.update(visible=True),                  # keep chat section visible
                     False,                                    # keep workspace mode False
+                    current_counter,                          # keep current counter
                 )
             
             # Valid scene with gallery data - proceed with transition
+            new_counter = current_counter + 1
             _in_workspace_mode = True
+            print(f"✅ Transitioning to workspace mode, counter: {new_counter}")
             return (
                 gr.update(visible=True),                 # show workspace
                 gr.update(elem_classes=["main-content"]), # remove landing centering
                 gr.update(visible=False),                # hide chat section
-                True,                                    # set workspace mode to True
+                new_counter,                             # increment counter
             )
 
         # Helper to reset all UI/state and return to landing
@@ -539,7 +542,6 @@ def create_app():
                 gr.update(value=""),                   # clear chat input
                 gr.update(visible=False),               # hide export status
                 gr.update(visible=False) if ENABLE_STATUS_PANEL else gr.update(visible=False),  # hide right panel if open
-                False,                                  # set workspace mode to False
                 gr.update(active=True),                 # restart health timer
             )
 
@@ -646,8 +648,38 @@ def create_app():
                 return gr.update(visible=True)   # Show button when ready
         
         # Health check function for both LLM and Trellis NIMs; updates status and controls UI visibility
-        def check_services_health():
+        def check_services_health(current_counter):
             global _in_workspace_mode
+            print("check_services_health")
+            print("global _in_workspace_mode", _in_workspace_mode)
+            print("current_counter", current_counter)
+
+            if _in_workspace_mode and current_counter == 0:
+                # add kill app logic here
+                print("🚨 DETECTED BROWSER REFRESH: In workspace mode but counter is 0")
+                print("🚨 This indicates browser refresh or state corruption - killing app")
+                print("🧹 Cleaning up resources...")
+                
+                # Stop the termination server
+                if _termination_server_thread:
+                    print("🛑 Stopping termination server...")
+                    try:
+                        _termination_server_thread.stop()
+                        print("✅ Termination server stopped")
+                    except Exception as e:
+                        print(f"⚠️ Error stopping termination server: {e}")
+                
+                # Stop both NIM containers
+                print("🛑 Stopping LLM NIM container...")
+                stop_llm_container(force=True)
+                
+                print("🛑 Stopping Trellis NIM container...")
+                stop_trellis_container(force=True)
+                
+                print("✅ Cleanup completed")
+                print("👋 Application shutdown complete")
+                os._exit(0)
+            
             
             # Check LLM health
             llm_health_url = f"{config.AGENT_BASE_URL}/health/ready"
@@ -694,12 +726,14 @@ def create_app():
         health_timer = gr.Timer(5, active=True)
         health_timer.tick(
             fn=check_services_health,
+            inputs=[session_transition_counter],
             outputs=[llm_spinner, llm_status, chat_components["section"], refresh_status_btn, health_timer]
         )
         
         # Wire up manual refresh button
         refresh_status_btn.click(
             fn=check_services_health,
+            inputs=[session_transition_counter],
             outputs=[llm_spinner, llm_status, chat_components["section"], refresh_status_btn, health_timer]
         )
         
@@ -718,8 +752,8 @@ def create_app():
             outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
         ).then(
             fn=reveal_workspace,
-            inputs=[gallery_components["data"]],
-            outputs=[workspace_section, main_col, chat_components["section"], in_workspace_mode]
+            inputs=[gallery_components["data"], session_transition_counter],
+            outputs=[workspace_section, main_col, chat_components["section"], session_transition_counter]
         ).then(
             fn=mark_images_generating,
             inputs=[gallery_components["data"]],
@@ -769,8 +803,8 @@ def create_app():
             outputs=[export_components["count_display"], export_components["thumbnails_container"], export_components["export_btn"], export_components["placeholder"], export_components["export_content_active"]]
         ).then(
             fn=reveal_workspace,
-            inputs=[gallery_components["data"]],
-            outputs=[workspace_section, main_col, chat_components["section"], in_workspace_mode]
+            inputs=[gallery_components["data"], session_transition_counter],
+            outputs=[workspace_section, main_col, chat_components["section"], session_transition_counter]
         ).then(
             fn=mark_images_generating,
             inputs=[gallery_components["data"]],
@@ -816,7 +850,7 @@ def create_app():
         ).then(
             fn=go_to_first_screen,
             inputs=[],
-            outputs=[workspace_section, main_col, chat_components["section"], chat_components["input"], export_status, right_panel, in_workspace_mode, health_timer]
+            outputs=[workspace_section, main_col, chat_components["section"], chat_components["input"], export_status, right_panel, health_timer]
         )
         
         # Connect toggle button to show/hide right panel (only if status panel is enabled)
