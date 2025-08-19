@@ -88,7 +88,7 @@ def create_image_gallery():
 
         def shift_card_ui(gallery_data):
             """Update the UI to reflect the current gallery data state."""
-            print(f"🔄 Updating gallery UI with {len(gallery_data)} objects")
+            print(f"Updating gallery UI with {len(gallery_data)} objects")
             updates = []
             for idx in range(MAX_CARDS):
                 if idx < len(gallery_data):
@@ -221,7 +221,7 @@ def create_image_gallery():
             enable_convert_all = has_unconverted_items and not is_batch_processing and not any_image_generating and not any_3d_generating
             updates.append(gr.update(visible=show_convert_all, interactive=enable_convert_all))
             
-            print(f"✅ Gallery UI updated with {len(gallery_data)} visible cards")
+            print(f"Gallery UI updated with {len(gallery_data)} visible cards")
             return updates
         
         # Note: Delete button events are handled in the main app to enable export section updates

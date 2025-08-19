@@ -160,9 +160,9 @@ class AgentService:
         """Initialize the planning agent."""
         try:
             self.agent = LLMAgent()
-            print("✅ LLM agent initialized successfully")
+            print("LLM agent initialized successfully")
         except Exception as e:
-            print(f"❌ Failed to initialize LLM agent: {e}")
+            print(f"Failed to initialize LLM agent: {e}")
             raise
     
     def is_healthy(self):
@@ -197,13 +197,13 @@ class AgentService:
             if classification == "SCENE":
                 return "SCENE", None  # No message needed, proceed with scene processing
             elif classification == "GREETING":
-                message = "👋 Hello! To get started, please describe a scene you'd like to create. For example: 'A cozy living room with a fireplace' or 'A tropical beach with palm trees'"
+                message = "Hello! To get started, please describe a scene you'd like to create. For example: 'A cozy living room with a fireplace' or 'A tropical beach with palm trees'"
                 return "GREETING", message
             elif classification == "QUESTION":
-                message = "🤖 I can help you create 3D scenes! Describe what you want to build, like 'A modern kitchen' or 'A garden with flowers'. I'll generate objects for your scene and create 3D models."
+                message = "I can help you create 3D scenes! Describe what you want to build, like 'A modern kitchen' or 'A garden with flowers'. I'll generate objects for your scene and create 3D models."
                 return "QUESTION", message
             elif classification == "GENERAL_CHAT":
-                message = "💬 Thanks! To create a 3D scene, please describe what you'd like to build. Try something like 'A beach scene' or 'A modern office'."
+                message = "Thanks! To create a 3D scene, please describe what you'd like to build. Try something like 'A beach scene' or 'A modern office'."
                 return "GENERAL_CHAT", message
             else:
                 return "SCENE", None  # Default fallback

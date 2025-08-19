@@ -240,7 +240,7 @@ def register():
         name="Import Directory",
         description="Directory containing 3D model files to import",
         subtype='DIR_PATH',
-        default=os.path.expandvars(r"%USERPROFILE%\.trellis\scene")
+        default=os.path.expandvars(r"%USERPROFILE%\.trellis\assets")
     )
 
     # --- New Properties ---

@@ -19,13 +19,13 @@ def check_service_health(url, service_name, timeout=5):
     try:
         response = requests.get(url, timeout=timeout)
         if response.status_code == 200:
-            logger.info(f"✅ {service_name} is ready")
+            logger.info(f"{service_name} is ready")
             return True
         else:
-            logger.debug(f"❌ {service_name} returned status {response.status_code}")
+            logger.debug(f"{service_name} returned status {response.status_code}")
             return False
     except requests.exceptions.RequestException as e:
-        logger.debug(f"❌ {service_name} not ready: {e}")
+        logger.debug(f"{service_name} not ready: {e}")
         return False
 
 def main():

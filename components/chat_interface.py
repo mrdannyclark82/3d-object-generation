@@ -91,7 +91,7 @@ def handle_scene_description(scene_description, agent_service, gallery_data, ima
             
             # Automatically generate images if image generation service is available
             if image_generation_service:
-                print("🎨 Generating images for all objects...")
+                print("Generating images for all objects...")
                 try:
                     success, message, generated_images = image_generation_service.generate_images_for_objects(new_gallery_data)
                     
@@ -101,14 +101,14 @@ def handle_scene_description(scene_description, agent_service, gallery_data, ima
                             object_name = obj["title"]
                             if object_name in generated_images:
                                 obj["path"] = generated_images[object_name]
-                                print(f"✅ Generated image for {object_name}: {generated_images[object_name]}")
+                                print(f"Generated image for {object_name}: {generated_images[object_name]}")
                             else:
-                                print(f"⚠️ No image generated for {object_name}")
+                                print(f"No image generated for {object_name}")
                     else:
-                        print(f"❌ Image generation failed: {message}")
+                        print(f"Image generation failed: {message}")
                         
                 except Exception as e:
-                    print(f"❌ Error during image generation: {str(e)}")
+                    print(f"Error during image generation: {str(e)}")
             
             # Handle 2D prompt content filtered cases by setting dummy image paths
             prompt_content_filtered_count = 0
@@ -116,10 +116,10 @@ def handle_scene_description(scene_description, agent_service, gallery_data, ima
                 if obj.get("prompt_content_filtered"):
                     obj["path"] = "static/images/content_filtered.svg"
                     prompt_content_filtered_count += 1
-                    print(f"🚫 2D prompt content filtered for {obj['title']} - using dummy image")
+                    print(f"2D prompt content filtered for {obj['title']} - using dummy image")
             
             if prompt_content_filtered_count > 0:
-                print(f"🚫 {prompt_content_filtered_count} objects had 2D prompts content filtered")
+                print(f"{prompt_content_filtered_count} objects had 2D prompts content filtered")
             
             # Create LLM-style response with count, subject reiteration, and suggested actions
             response = f"Review the {len(prompts)} objects and delete any that are not needed. "

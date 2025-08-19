@@ -29,4 +29,3 @@ if errorlevel 1 (
 echo.
 echo Services stopped!
 echo.
-pause 

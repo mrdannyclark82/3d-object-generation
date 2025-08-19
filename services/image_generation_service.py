@@ -76,16 +76,16 @@ class ImageGenerationService:
     def load_sana_model(self, device="cuda:0", force_reload=False):
         """Load the SANA model for image generation with optimizations."""
         try:
-            print(f"🕐 Timestamp before load_sana_model: {time.time()}")
+            print(f"Timestamp before load_sana_model: {time.time()}")
             if self.is_loaded and self.sana_pipeline is not None and not force_reload:
                 logger.info("SANA model already loaded")
                 self.move_sana_pipeline_to_device(device)
                 return True
             
-            print(f"🕐 Timestamp after load_sana_model: {time.time()}")
+            print(f"Timestamp after load_sana_model: {time.time()}")
             # Clear GPU memory before loading
             self._clear_gpu_memory() 
-            print(f"🕐 Timestamp after clear_gpu_memory: {time.time()}")
+            print(f"Timestamp after clear_gpu_memory: {time.time()}")
             
             logger.info("Loading SANA model...")
             
@@ -95,7 +95,7 @@ class ImageGenerationService:
                 self.model_path,
                 torch_dtype=torch.bfloat16,
             )
-            print(f"🕐 Timestamp after load_sana_model: {time.time()}")
+            print(f"Timestamp after load_sana_model: {time.time()}")
             print(f"Time taken to load SANA model: {time.time() - initial_time} seconds")
             
             initial_time = time.time()
@@ -103,7 +103,7 @@ class ImageGenerationService:
             self.move_sana_pipeline_to_device("cuda:0")
             
             print(f"Time taken to move SANA model to GPU: {time.time() - initial_time} seconds")
-            print(f"🕐 Timestamp after move_sana_model_to_gpu: {time.time()}")
+            print(f"Timestamp after move_sana_model_to_gpu: {time.time()}")
         
             self.is_loaded = True
             logger.info("Successfully loaded SANA model")   

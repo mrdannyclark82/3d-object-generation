@@ -10,16 +10,12 @@ bl_info = {
 import bpy
 import os
 import subprocess
-import json
 import threading
 import time
-import socket
-import signal
-import errno
-import platform
-import ctypes
 import logging
 import shutil
+import platform
+import urllib.request
 from bpy.types import Operator, Panel, AddonPreferences
 from bpy.props import StringProperty, EnumProperty
 
@@ -76,7 +72,7 @@ def get_conda_python_path():
     addon_prefs = bpy.context.preferences.addons[__name__].preferences
     user_python_path = addon_prefs.python_path.strip()
 
-    # Step 1: Check CONDA_PREFIX (original step 2 moved up)
+    # Step 1: Check CONDA_PREFIX
     conda_prefix = os.environ.get("CONDA_PREFIX")
     if conda_prefix and os.path.isdir(conda_prefix):
         if os.path.basename(conda_prefix) == "trellis" and os.path.basename(os.path.dirname(conda_prefix)) == "envs":
@@ -101,7 +97,7 @@ def get_conda_python_path():
             except Exception as e:
                 logger.debug("Failed to verify Python path from CONDA_PREFIX: %s", str(e))
 
-    # Step 2: Check ~/.conda/environments.txt for trellis environment
+    # Step 2: Check ~/.conda/environments.txt
     env_file = os.path.join(os.path.expanduser("~"), ".conda", "environments.txt")
     if os.path.isfile(env_file):
         try:
@@ -130,7 +126,7 @@ def get_conda_python_path():
         except Exception as e:
             logger.warning("Failed to read environments.txt: %s", str(e))
 
-    # Step 3: Check user-supplied python_path (as per query request)
+    # Step 3: Check user-supplied python_path
     if user_python_path and os.path.isfile(user_python_path):
         try:
             result = subprocess.run(
@@ -207,318 +203,74 @@ def get_conda_python_path():
     logger.error("Conda Python not found. Ensure the 'trellis' environment is set up correctly.")
     return None
 
-def try_curl_health_check():
-    """Try checking the LLM service health on both IPv6 and IPv4 addresses."""
-    addresses = ["[::1]", "127.0.0.1"]
-    for addr in addresses:
-        try:
-            result = subprocess.run(
-                ['curl', '-X', 'GET', f'http://{addr}:8000/v1/health/ready'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            logger.debug("LLM health check for %s: returncode=%d, stdout=%s",
-                        addr, result.returncode, result.stdout)
-            if result.returncode == 0:
-                try:
-                    response = json.loads(result.stdout)
-                    return response, True
-                except json.JSONDecodeError:
-                    logger.error("Failed to parse LLM health check response from %s: %s", addr, result.stdout)
-                    continue
-            else:
-                logger.debug("LLM health check failed for %s: ", addr)
-        except subprocess.SubprocessError as e:
-            logger.debug("LLM health check failed for %s:", addr)
-    return None, False
-
-def stop_llm_service():
-    """Stop the LLM service running in a Podman container via WSL."""
-    global llm_status
-    container_name = "CHAT_TO_3D"
-    
-    def is_container_running():
-        try:
-            result = subprocess.run(
-                ["wsl", "podman", "ps", "-a", "--format", "{{.Names}} {{.Status}}"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                for line in result.stdout.strip().splitlines():
-                    if line.startswith(container_name):
-                        status = line[len(container_name):].strip()
-                        logger.debug(f"Container {container_name} status: {status}")
-                        return True
-                return False
-            else:
-                logger.error(f"Failed to list containers: {result.stderr}")
-                return False
-        except subprocess.SubprocessError as e:
-            logger.error(f"Error checking container status: {str(e)}")
-            return False
-    
-    if not is_container_running():
-        logger.info(f"No {container_name} container found, assuming LLM service is not running")
-        with llm_status_lock:
-            llm_status = "NOT READY"
-        return True
-    
-    stop_attempts = 2
-    for attempt in range(1, stop_attempts + 1):
-        logger.info(f"Attempt {attempt}/{stop_attempts} to stop {container_name} container")
-        try:
-            result = subprocess.run(
-                ["wsl", "podman", "stop", container_name],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            if result.returncode == 0:
-                logger.info(f"{container_name} container stopped successfully on attempt {attempt}")
-                break
-            else:
-                logger.warning(f"Failed to stop {container_name} container on attempt {attempt}: {result.stderr}")
-        except subprocess.SubprocessError as e:
-            logger.warning(f"Error stopping {container_name} container on attempt {attempt}: {str(e)}")
-        if attempt < stop_attempts:
-            logger.debug("Retrying after 2 seconds...")
-            time.sleep(2)
-    else:
-        logger.error(f"Failed to stop {container_name} container after {stop_attempts} attempts")
-    
-    start_time = time.time()
-    timeout = 15
-    while time.time() - start_time < timeout:
-        if not is_container_running():
-            logger.info(f"{container_name} container is no longer running")
-            with llm_status_lock:
-                llm_status = "NOT READY"
-            return True
-        logger.debug(f"Waiting for {container_name} container to stop...")
-        time.sleep(1)
-    
-    logger.warning(f"{container_name} container did not stop within {timeout} seconds, attempting force removal")
+def get_services_status(python_path):
+    """Run check_services.py to get LLM and Trellis status."""
     try:
+        script_path = os.path.join(bpy.context.preferences.addons[__name__].preferences.base_path, "check_services.py")
+        logger.debug(f"Running check_services.py at: {script_path} with python: {python_path}")
         result = subprocess.run(
-            ["wsl", "podman", "rm", "-f", container_name],
+            [python_path, script_path],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=10
         )
-        if result.returncode == 0:
-            logger.info(f"{container_name} container force-removed successfully")
+        logger.debug(f"check_services.py return code: {result.returncode}")
+        logger.debug(f"check_services.py stdout: {repr(result.stdout)}")
+        logger.debug(f"check_services.py stderr: {repr(result.stderr)}")
+        output = result.stdout.strip()
+        if output.endswith("ALL_READY"):
+            return "READY", "READY"
+        elif output.endswith("LLM_READY"):
+            return "READY", "NOT READY"
+        elif output.endswith("TRELLIS_READY"):
+            return "NOT READY", "READY"
         else:
-            logger.error(f"Failed to force-remove {container_name} container: {result.stderr}")
-            return False
-    except subprocess.SubprocessError as e:
-        logger.error(f"Error force-removing {container_name} container: {str(e)}")
-        return False
-    
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        if not is_container_running():
-            logger.info(f"{container_name} container is no longer running after force removal")
-            with llm_status_lock:
-                llm_status = "NOT READY"
-            return True
-        logger.debug(f"Waiting for {container_name} container to be removed...")
-        time.sleep(1)
-    
-    logger.error(f"Timeout: {container_name} container could not be stopped or removed within {timeout} seconds")
-    return False
-
-def check_llm_service():
-    """Run curl command to check LLM service status in a separate thread."""
-    global llm_status, stop_thread
-    while not stop_thread:
-        response, success = try_curl_health_check()
-        with llm_status_lock:
-            if success and response.get("message") == "Service is ready.":
-                llm_status = "READY"
-            else:
-                llm_status = "NOT READY"
-        time.sleep(10)
-
-def check_trellis_service():
-    """Check Trellis server status by attempting socket connection."""
-    global trellis_status, stop_thread
-    while not stop_thread:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-                client.settimeout(0.5)
-                client.connect(('localhost', 12345))
-                with trellis_status_lock:
-                    trellis_status = "READY"
-        except (ConnectionRefusedError, socket.timeout):
-            with trellis_status_lock:
-                trellis_status = "NOT READY"
-        time.sleep(10)
+            return "NOT READY", "NOT READY"
+    except Exception as e:
+        logger.debug(f"Failed to check services: {str(e)}")
+        return "NOT READY", "NOT READY"
 
 def check_gradio_service():
-    """Check Gradio UI status by attempting to fetch HTTP headers."""
-    global gradio_status, stop_thread
+    """Check Gradio service status using urllib."""
+    try:
+        req = urllib.request.Request('http://127.0.0.1:7860/', method='HEAD')
+        with urllib.request.urlopen(req, timeout=5) as response:
+            logger.debug(f"Gradio HTTP response code: {response.code}")
+            if response.code == 200 or response.code == 302:
+                return "READY"
+        return "NOT READY"
+    except Exception as e:
+        logger.debug(f"Failed to check Gradio: {str(e)}")
+        return "NOT READY"
+
+def check_services_status():
+    """Thread function to periodically check all services."""
+    global llm_status, trellis_status, gradio_status
+    global stop_thread  # Optional, since it's only read
+    python_path = get_conda_python_path()
     while not stop_thread:
-        try:
-            result = subprocess.run(
-                ['curl', '-Is', 'http://127.0.0.1:7860/'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            logger.debug("Gradio health check: returncode=%d, stdout=%s, stderr=%s",
-                        result.returncode, result.stdout.strip(), result.stderr.strip())
-            if result.returncode == 0 and result.stdout:
-                status_line = result.stdout.splitlines()[0].strip() if result.stdout.splitlines() else ""
-                if status_line.startswith("HTTP/"):
-                    if " 200 " in status_line or " 302 " in status_line:
-                        with gradio_status_lock:
-                            gradio_status = "READY"
-                        logger.debug("Gradio server started successfully")
-                    else:
-                        with gradio_status_lock:
-                            gradio_status = "NOT READY"
-                        logger.debug("Gradio server not ready: status=%s", status_line)
-                else:
-                    with gradio_status_lock:
-                        gradio_status = "NOT READY"
-                    logger.debug("Gradio server not ready: no HTTP status")
-            else:
-                with gradio_status_lock:
-                    gradio_status = "NOT READY"
-                logger.debug("Gradio server not ready: curl failed")
-        except subprocess.SubprocessError as e:
-            logger.debug("Gradio health check failed: %s", str(e))
-            with gradio_status_lock:
-                gradio_status = "NOT READY"
+        llm, trellis = get_services_status(python_path)
+        gradio = check_gradio_service()
+        with llm_status_lock:
+            llm_status = llm
+        with trellis_status_lock:
+            trellis_status = trellis
+        with gradio_status_lock:
+            gradio_status = gradio
         time.sleep(10)
 
 def start_status_threads():
-    """Start LLM, Trellis, and Gradio status checking threads."""
-    global stop_thread
-    stop_thread = False
-    llm_thread = threading.Thread(target=check_llm_service, daemon=True)
-    trellis_thread = threading.Thread(target=check_trellis_service, daemon=True)
-    gradio_thread = threading.Thread(target=check_gradio_service, daemon=True)
-    llm_thread.start()
-    trellis_thread.start()
-    gradio_thread.start()
+    """Start the status checking thread."""
+    global check_thread
+    check_thread = threading.Thread(target=check_services_status, daemon=True)
+    check_thread.start()
 
 def stop_status_threads():
-    """Stop LLM, Trellis, and Gradio status checking threads."""
+    """Stop the status checking thread."""
     global stop_thread
     stop_thread = True
-
-class TrellisTerminator:
-    def __init__(self, host='localhost', port=12345):
-        self.host = host
-        self.port = port
-
-    def is_server_running(self):
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-                client.settimeout(0.5)
-                client.connect((self.host, self.port))
-            return True
-        except (ConnectionRefusedError, socket.timeout):
-            return False
-
-    def terminate_process(self, pid):
-        """Terminate process with SIGTERM, fallback to SIGKILL if needed."""
-        try:
-            os.kill(pid, signal.SIGTERM)
-            logger.info(f"Sent SIGTERM to process {pid}")
-            for i in range(15):
-                if not process_exists(pid):
-                    logger.info(f"Process {pid} terminated successfully after {i + 1} seconds")
-                    return True
-                logger.debug(f"Waiting for process {pid} to terminate... (attempt {i + 1}/15)")
-                time.sleep(1)
-            if process_exists(pid):
-                logger.warning(f"Process {pid} did not terminate gracefully after 15 seconds, sending SIGKILL")
-                os.kill(pid, signal.SIGKILL)
-                time.sleep(1)
-                if not process_exists(pid):
-                    logger.info(f"Process {pid} terminated successfully after SIGKILL")
-                    return True
-                else:
-                    logger.error(f"Process {pid} could not be terminated even with SIGKILL")
-                    return False
-            return True
-        except Exception as e:
-            logger.error(f"Error terminating process {pid}: {e}")
-            return False
-
-    def terminate_and_wait(self):
-        if not self.is_server_running():
-            logger.info("TRELLIS server not running")
-            return True
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-                client.settimeout(2)
-                client.connect((self.host, self.port))
-                client.send(b'terminate')
-                response = client.recv(1024)
-                if not response.startswith(b'terminating:'):
-                    logger.error(f"Unexpected response: {response}")
-                    return False
-                pid = int(response.decode().split(':')[1])
-                logger.info(f"Received PID {pid} from server")
-                return self.terminate_process(pid)
-        except Exception as e:
-            logger.error(f"Error during termination: {e}")
-            return False
-
-def process_exists(pid):
-    """Check if a process with the given PID exists and is still running."""
-    try:
-        import psutil
-        if psutil.pid_exists(pid):
-            process = psutil.Process(pid)
-            status = process.status()
-            children = process.children(recursive=True)
-            if children:
-                child_pids = [child.pid for child in children]
-                logger.debug(f"Process {pid} has {len(children)} child processes: {child_pids}")
-            logger.debug(f"Process {pid} status: {status}")
-            if status == psutil.STATUS_ZOMBIE:
-                logger.debug(f"Process {pid} is in zombie state, treating as terminated")
-                return False
-            return True
-        return False
-    except ImportError:
-        logger.warning("psutil is not installed, using fallback method. Install it for reliable process management: C:\\Program Files\\WindowsApps\\BlenderFoundation.Blender4.2LTS_4.2.11.0_x64__ppwjx1n5r4v9t\\Blender\\4.2\\python\\bin\\pip install psutil")
-        if platform.system() == "Windows":
-            PROCESS_QUERY_INFORMATION = 0x0400
-            handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_INFORMATION, False, pid)
-            if handle:
-                try:
-                    exit_code = ctypes.c_ulong()
-                    success = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
-                    ctypes.windll.kernel32.CloseHandle(handle)
-                    if success:
-                        return exit_code.value == 259  # STILL_ACTIVE
-                    else:
-                        logger.debug(f"Failed to get exit code for PID {pid}: {ctypes.get_last_error()}")
-                        return False
-                except Exception as e:
-                    logger.debug(f"Error checking exit code for PID {pid}: {e}")
-                    ctypes.windll.kernel32.CloseHandle(handle)
-                    return False
-            return False
-        else:
-            try:
-                os.kill(pid, 0)
-                return True
-            except OSError as e:
-                return e.errno != errno.ESRCH
-    except psutil.NoSuchProcess:
-        return False
-    except psutil.Error as e:
-        logger.debug(f"psutil error while checking PID {pid}: {e}")
-        return False
+    if 'check_thread' in globals() and check_thread.is_alive():
+        check_thread.join(timeout=5)
 
 class TrellisAddonPreferences(AddonPreferences):
     bl_idname = __name__
@@ -531,69 +283,46 @@ class TrellisAddonPreferences(AddonPreferences):
     )
 
     python_path: StringProperty(
-        name="Python Path",
-        description="Path to the Python executable in the 'trellis' environment (e.g., C:\\Users\\NV\\Miniconda3\\envs\\trellis\\python.exe)",
-        default="",
-        subtype='FILE_PATH'
+        name="Conda Python Path",
+        subtype='FILE_PATH',
+        description="Path to the Python executable in the trellis Conda environment"
     )
 
     console_log_level: EnumProperty(
         name="Console Log Level",
-        description="Set the level of messages displayed in the console",
         items=[
-            ("ERROR", "Error", "Display only error messages"),
-            ("INFO", "Info", "Display info and error messages"),
-            ("DEBUG", "Debug", "Display debug, info, and error messages"),
+            ("ERROR", "Error", "Show only errors"),
+            ("INFO", "Info", "Show info and errors"),
+            ("DEBUG", "Debug", "Show all messages")
         ],
-        default="INFO",
+        default="DEBUG",
         update=lambda self, context: update_logging_level()
     )
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Chat-to-3D Preferences")
         layout.prop(self, "base_path")
         layout.prop(self, "python_path")
-        layout.label(text="Logging Preferences")
         layout.prop(self, "console_log_level")
 
 class TrellisManager:
-    _instance = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(TrellisManager, cls).__new__(cls)
-            cls._instance.__initialized = False
-        return cls._instance
-
     def __init__(self):
-        if not hasattr(self, '__initialized'):
-            self.trellis_process = None
-            self.stdout_thread = None
-            self.stderr_thread = None
-            self.__initialized = True
+        self.process = None
+        self.stdout_thread = None
+        self.stderr_thread = None
 
-    def start_trellis(self, python_path, base_path):
-        """Start the Trellis server and capture its output."""
-        global trellis_status
-        trellis_run_script = os.path.join(base_path, "chat-to-3d-core", "run.py")
-        if not os.path.isfile(trellis_run_script):
-            logger.error(f"Trellis run script not found: {trellis_run_script}")
-            return False
-
-        os.environ['ATTN_BACKEND'] = 'flash-attn'
-        os.environ['SPCONV_ALGO'] = 'native'
-        os.environ['XFORMERS_FORCE_DISABLE_TRITON'] = '1'
+    def start_services(self, python_path, base_path):
+        """Start all services using app.py."""
         try:
-            self.trellis_process = subprocess.Popen(
-                [python_path, trellis_run_script],
+            script_path = os.path.join(base_path, "app.py")
+            self.process = subprocess.Popen(
+                [python_path, script_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                cwd=os.path.join(base_path, "chat-to-3d-core"),
-                creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+                cwd=base_path
             )
-            logger.info("Trellis server started with PID %d", self.trellis_process.pid)
+            logger.info("Services started with PID %d via app.py", self.process.pid)
 
             def log_output(pipe, log_func):
                 while not log_output_stop.is_set():
@@ -618,54 +347,36 @@ class TrellisManager:
 
             self.stdout_thread = threading.Thread(
                 target=log_output,
-                args=(self.trellis_process.stdout, lambda x: logger.info("Trellis stdout: %s", x)),
+                args=(self.process.stdout, lambda x: logger.info("app.py stdout: %s", x)),
                 daemon=True
             )
             self.stderr_thread = threading.Thread(
                 target=log_output,
-                args=(self.trellis_process.stderr, lambda x: logger.error("Trellis stderr: %s", x)),
+                args=(self.process.stderr, lambda x: logger.error("app.py stderr: %s", x)),
                 daemon=True
             )
             self.stdout_thread.start()
             self.stderr_thread.start()
 
-            start_time = time.time()
-            timeout = 30
-            retry_interval = 1
-            while time.time() - start_time < timeout:
-                try:
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-                        client.settimeout(1)
-                        client.connect(('localhost', 12345))
-                        with trellis_status_lock:
-                            trellis_status = "READY"
-                        logger.info("TRELLIS server started successfully")
-                        return True
-                except (ConnectionRefusedError, socket.timeout) as e:
-                    logger.debug(f"Failed to connect to Trellis server: {e}, retrying...")
-                    time.sleep(retry_interval)
-            logger.error("TRELLIS server failed to start within timeout")
-            self.stop_trellis()
-            return False
+            return True
         except Exception as e:
-            logger.error(f"Failed to start TRELLIS: {str(e)}")
-            self.stop_trellis()
+            logger.error(f"Failed to start services via app.py: {str(e)}")
             return False
 
-    def stop_trellis(self):
-        """Stop the Trellis server and clean up resources."""
-        if self.trellis_process:
+    def stop_services(self):
+        """Stop all services and clean up resources."""
+        if self.process:
             log_output_stop.set()
             if self.stdout_thread:
                 self.stdout_thread.join(timeout=5)
             if self.stderr_thread:
                 self.stderr_thread.join(timeout=5)
             try:
-                self.trellis_process.stdout.close()
-                self.trellis_process.stderr.close()
+                self.process.stdout.close()
+                self.process.stderr.close()
             except Exception as e:
                 logger.debug(f"Error closing pipes: {e}")
-            self.trellis_process = None
+            self.process = None
             self.stdout_thread = None
             self.stderr_thread = None
             log_output_stop.clear()
@@ -674,191 +385,100 @@ class TRELLIS_OT_ManageTrellis(Operator):
     bl_idname = "trellis.manage_trellis"
     bl_label = "Manage TRELLIS"
 
-    def check_llm_ready(self, timeout=120):
-        """Check if LLM service is ready, with timeout in seconds."""
+    def check_services_ready(self, timeout=300):
+        """Check if all services are ready, with timeout in seconds."""
         start_time = time.time()
         last_log_time = start_time
         while time.time() - start_time < timeout:
-            response, success = try_curl_health_check()
-            with llm_status_lock:
-                global llm_status
-                if success and response.get("message") == "Service is ready.":
-                    llm_status = "READY"
-                    logger.info("LLM service is ready")
+            with llm_status_lock, trellis_status_lock, gradio_status_lock:
+                if llm_status == "READY" and trellis_status == "READY" and gradio_status == "READY":
+                    logger.info("All services are ready")
                     return True
-                else:
-                    current_time = time.time()
-                    elapsed_time = int(current_time - start_time)
-                    if current_time - last_log_time >= 5:
-                        logger.warning("LLM not ready after %d seconds: response=%s", elapsed_time, response if success else "no response")
-                        last_log_time = current_time
+                current_time = time.time()
+                if current_time - last_log_time >= 5:
+                    logger.warning("Services not ready after %d seconds: LLM=%s, Trellis=%s, Gradio=%s",
+                                int(current_time - start_time), llm_status, trellis_status, gradio_status)
+                    last_log_time = current_time
             time.sleep(1)
-        elapsed_time = int(time.time() - start_time)
-        logger.error("LLM service failed to start within %d seconds", elapsed_time)
+        logger.error("Services failed to start within %d seconds", timeout)
         return False
     
-    def start_llm(self):
-        """Start the LLM service and capture its output, switching CWD to nim_llm directory."""
-        global llm_status
-        llm_status = "STARTING..."
-        original_cwd = os.getcwd()
-        try:
-            python_path = get_conda_python_path()
-            if not python_path:
-                logger.error("Conda Python executable not found")
-                return
-            
-            base_path = bpy.context.preferences.addons[__name__].preferences.base_path
-            llm_start_script = os.path.join(base_path, "nim_llm", "run_llama.py")
-            if not os.path.isfile(llm_start_script):
-                logger.error(f"LLM start script not found: {llm_start_script}")
-                return
-            
-            working_dir = os.path.join(base_path, "nim_llm")
-            logger.info("Switching working directory to: %s", working_dir)
-            os.chdir(working_dir)
-            
-            os.environ['NIM_CACHE'] = os.path.join(base_path, "nim_cache")
-            
-            process = subprocess.Popen(
-                [python_path, llm_start_script],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                cwd=working_dir,
-                creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
-            )
-            logger.info("LLM service started with PID %d", process.pid)
-            
-            def log_output(pipe, log_func):
-                while not log_output_stop.is_set():
-                    try:
-                        line = pipe.readline()
-                        if not line:
-                            break
-                        if "INFO" in line:
-                            logger.info(line.strip())
-                        elif "DEBUG" in line:
-                            logger.debug(line.strip())
-                        elif "WARNING" in line:
-                            logger.warning(line.strip())
-                        else:
-                            log_func(line.strip())
-                    except ValueError as e:
-                        logger.debug(f"Pipe closed while logging: {e}")
-                        break
-                    except Exception as e:
-                        logger.error(f"Error while logging output: {e}")
-                        break
-            
-            stdout_thread = threading.Thread(
-                target=log_output,
-                args=(process.stdout, lambda x: logger.info("LLM stdout: %s", x)),
-                daemon=True
-            )
-            stderr_thread = threading.Thread(
-                target=log_output,
-                args=(process.stderr, lambda x: logger.error("LLM stderr: %s", x)),
-                daemon=True
-            )
-            stdout_thread.start()
-            stderr_thread.start()
-            
-        except Exception as e:
-            logger.error("Failed to start LLM: %s", str(e))
-        finally:
-            logger.info("Restoring working directory to: %s", original_cwd)
-            os.chdir(original_cwd)
-    
     def execute(self, context):
-        global trellis_status, llm_status
+        global trellis_status, llm_status, gradio_status
         manager = TrellisManager()
         
-        with trellis_status_lock, llm_status_lock:
-            current_status = "READY" if trellis_status == "READY" and llm_status == "READY" else "NOT READY"
-            logger.info(f"Current Status is: {current_status}")
-            llm_stat = llm_status
-            trellis_stat = trellis_status
+        with trellis_status_lock, llm_status_lock, gradio_status_lock:
+            overall_status = "READY" if trellis_status == "READY" and llm_status == "READY" and gradio_status == "READY" else "NOT READY"
+            logger.info(f"Current Status is: {overall_status}")
         
         base_path = bpy.context.preferences.addons[__name__].preferences.base_path
         if not base_path or not os.path.isdir(base_path):
             self.report({'ERROR'}, "Invalid or missing Trellis Base Path")
             return {'CANCELLED'}
         
-        llm_start_script = os.path.join(base_path, "nim_llm", "run_llama.py")
-        trellis_run_script = os.path.join(base_path, "chat-to-3d-core", "run.py")
+        app_script = os.path.join(base_path, "app.py")
+        if not os.path.isfile(app_script):
+            self.report({'ERROR'}, f"app.py script not found: {app_script}")
+            return {'CANCELLED'}
         
         python_path = get_conda_python_path()
         if not python_path:
             self.report({'ERROR'}, "Conda Python executable not found. Set Conda Base Path in addon preferences or ensure conda is in PATH.")
             return {'CANCELLED'}
         
-        if current_status == "READY":
-            # Stop LLM service
-            if not stop_llm_service():
-                self.report({'WARNING'}, "Failed to stop LLM service, continuing with Trellis termination")
-            else:
-                self.report({'INFO'}, "LLM service stopped successfully")
-
-            # Stop Trellis service
-            terminator = TrellisTerminator()
-            tw = terminator.terminate_and_wait()
-            logger.info(f"Trellis termination result: {str(tw)}")
-            if tw:
-                self.report({'INFO'}, "TRELLIS terminated successfully")
+        if overall_status == "READY":
+            # Stop services (existing code remains unchanged)
+            try:
+                subprocess.run(["stop_services.bat"], shell=True, check=True, cwd=base_path)
+                logger.info("Services stopped via stop_services.bat")
+                # Wait briefly for services to become NOT READY (keep this short to avoid blocking)
+                start_time = time.time()
+                timeout = 30
+                while time.time() - start_time < timeout:
+                    with llm_status_lock, trellis_status_lock, gradio_status_lock:
+                        if llm_status == "NOT READY" and trellis_status == "NOT READY" and gradio_status == "NOT READY":
+                            break
+                    time.sleep(1)
+                manager.stop_services()
+                self.report({'INFO'}, "All services terminated successfully")
                 with trellis_status_lock:
                     trellis_status = "NOT READY"
-                manager.stop_trellis()  # Clean up any remaining resources
-                response, success = try_curl_health_check()
                 with llm_status_lock:
-                    llm_status = "READY" if success and response.get("message") == "Service is ready." else "NOT READY"
-            else:
-                self.report({'ERROR'}, "Failed to terminate TRELLIS")
+                    llm_status = "NOT READY"
+                with gradio_status_lock:
+                    gradio_status = "NOT READY"
+            except Exception as e:
+                logger.error(f"Failed to stop services via stop_services.bat: {str(e)}")
+                self.report({'ERROR'}, "Failed to stop services")
                 return {'CANCELLED'}
         else:
-            if not os.path.isfile(llm_start_script):
-                self.report({'ERROR'}, f"LLM start script not found: {llm_start_script}")
-                return {'CANCELLED'}
-            if not os.path.isfile(trellis_run_script):
-                self.report({'ERROR'}, f"Trellis run script not found: {trellis_run_script}")
-                return {'CANCELLED'}
-            
-            if llm_stat != "READY":
-                llm_already_ready = False
-                response, success = try_curl_health_check()
-                if success and response.get("message") == "Service is ready.":
-                    with llm_status_lock:
-                        llm_status = "READY"
-                    llm_already_ready = True
-                    logger.info("LLM service is already ready, skipping startup")
-                else:
-                    logger.info("LLM service not ready: response=%s", response if success else "no response")
+            # Check if services are already running
+            llm, trellis = get_services_status(python_path)
+            gradio = check_gradio_service()
+            if llm == "READY" and trellis == "READY" and gradio == "READY":
+                with llm_status_lock:
+                    llm_status = "READY"
+                with trellis_status_lock:
+                    trellis_status = "READY"
+                with gradio_status_lock:
+                    gradio_status = "READY"
+                logger.info("All services are already ready, skipping startup")
+                self.report({'INFO'}, "All services are already running")
+            else:
+                # Stop any existing partial services
+                try:
+                    subprocess.run(["stop_services.bat"], shell=True, check=True, cwd=base_path)
+                    logger.info("Existing partial services stopped via stop_services.bat")
+                except Exception as e:
+                    logger.warning(f"Failed to stop existing services: {str(e)}")
+                    self.report({'WARNING'}, "Failed to stop existing services, continuing with startup")
                 
-                if not llm_already_ready:
-                    if not stop_llm_service():
-                        self.report({'WARNING'}, "Failed to stop existing LLM service, continuing with startup")
-                    else:
-                        self.report({'INFO'}, "Existing LLM service stopped successfully")
-                    llm_thread = threading.Thread(target=self.start_llm, daemon=True)
-                    llm_thread.start()
-                    
-                    self.report({'INFO'}, "Starting LLM service...")
-                    if not self.check_llm_ready(timeout=120):
-                        self.report({'ERROR'}, "LLM service failed to start within timeout")
-                        return {'CANCELLED'}
-                    self.report({'INFO'}, "LLM service is ready")
-            else:
-                logger.info("LLM service is already READY, skipping startup")
-                self.report({'INFO'}, "LLM service is already READY, skipping startup")
-            
-            if trellis_stat != "READY":
-                if not manager.start_trellis(python_path, base_path):
-                    self.report({'ERROR'}, "Failed to start TRELLIS server")
+                # Start services non-blocking
+                if not manager.start_services(python_path, base_path):
+                    self.report({'ERROR'}, "Failed to start services via app.py")
                     return {'CANCELLED'}
-                self.report({'INFO'}, "TRELLIS server started successfully")
-            else:
-                logger.info("Trellis service is already READY, skipping startup")
-                self.report({'INFO'}, "Trellis service is already READY, skipping startup")
+                
+                self.report({'INFO'}, "Services are starting... Check status below.")
         
         return {'FINISHED'}
 
@@ -875,8 +495,8 @@ class VIEW3D_PT_CHAT_TO_3D(Panel):
         
         layout.label(text="Base Path is set in Add-on Preferences")
         
-        with trellis_status_lock, llm_status_lock:
-            overall_status = "READY" if trellis_status == "READY" and llm_status == "READY" else "NOT READY"
+        with trellis_status_lock, llm_status_lock, gradio_status_lock:
+            overall_status = "READY" if trellis_status == "READY" and llm_status == "READY" and gradio_status == "READY" else "NOT READY"
         layout.operator(
             TRELLIS_OT_ManageTrellis.bl_idname,
             text="Terminate CHAT-TO-3D" if overall_status == "READY" else "Start CHAT-TO-3D"
@@ -899,7 +519,7 @@ class VIEW3D_PT_CHAT_TO_3D(Panel):
         with gradio_status_lock:
             gradio_stat = gradio_status
         layout.label(
-            text=f"Gradio Web UI Status: {gradio_stat}",
+            text=f"Grado Web UI Status: {gradio_stat}",
             icon='CHECKMARK' if gradio_stat == "READY" else 'ERROR'
         )
         
@@ -948,30 +568,24 @@ def register():
     
     # Start status threads and UI timer
     start_status_threads()
-    bpy.app.timers.register(update_status_ui, persistent=True)
+    try:
+        bpy.app.timers.register(update_status_ui, persistent=True)
+    except TypeError as e:
+        logger.error(f"Failed to register timer: {str(e)}")
+        raise
 
 def unregister():
     global log_output_stop
     log_output_stop.set()
     
-    if not stop_llm_service():
-        logger.warning("Failed to stop LLM service during unregister")
-    else:
-        logger.info("LLM service stopped successfully during unregister")
+    base_path = bpy.context.preferences.addons[__name__].preferences.base_path
+    try:
+        subprocess.run(["stop_services.bat"], shell=True, check=True, cwd=base_path)
+        logger.info("Services stopped successfully during unregister")
+    except Exception as e:
+        logger.warning(f"Failed to stop services during unregister: {str(e)}")
 
-    terminator = TrellisTerminator()
-    tw = terminator.terminate_and_wait()
-    if tw:
-        logger.info("TRELLIS terminated successfully during unregister")
-        with trellis_status_lock:
-            trellis_status = "NOT READY"
-        response, success = try_curl_health_check()
-        with llm_status_lock:
-            llm_status = "READY" if success and response.get("message") == "Service is ready." else "NOT READY"
-    else:
-        logger.error("Failed to terminate TRELLIS during unregister")
-
-    TrellisManager().stop_trellis()
+    TrellisManager().stop_services()
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

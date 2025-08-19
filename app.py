@@ -122,7 +122,7 @@ class TerminationServer:
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
     global _shutdown_requested, _termination_server_thread
-    print(f"\n🛑 Received signal {signum}, initiating graceful shutdown...")
+    print(f"\nReceived signal {signum}, initiating graceful shutdown...")
     _shutdown_requested = True
     
     # Stop the termination server
@@ -185,7 +185,7 @@ def _ensure_llm_nim_started():
     try:
         resp = requests.get(health_url, timeout=1.5)
         if resp.status_code == 200:
-            print("✅ LLM NIM already running")
+            print("LLM NIM already running")
             return
     except Exception:
         pass
@@ -194,7 +194,7 @@ def _ensure_llm_nim_started():
         global _nim_process
         try:
             script_path = Path(__file__).parent / "nim_llm" / "run_llama.py"
-            print(f"🚀 Starting LLM NIM via {script_path}")
+            print(f"Starting LLM NIM via {script_path}")
             popen_kwargs = {}
             if os.name == "nt":
                 popen_kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
@@ -202,7 +202,7 @@ def _ensure_llm_nim_started():
                 popen_kwargs["start_new_session"] = True
             _nim_process = subprocess.Popen([sys.executable, str(script_path)], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, **popen_kwargs)
         except Exception as e:
-            print(f"❌ Failed to start LLM NIM: {e}")
+            print(f"Failed to start LLM NIM: {e}")
 
     threading.Thread(target=_runner, daemon=True).start()
 
@@ -217,7 +217,7 @@ def _ensure_trellis_nim_started():
     try:
         resp = requests.get(health_url, timeout=1.5)
         if resp.status_code == 200:
-            print("✅ Trellis NIM already running")
+            print("Trellis NIM already running")
             return
     except Exception:
         pass
@@ -226,7 +226,7 @@ def _ensure_trellis_nim_started():
         global _trellis_process
         try:
             script_path = Path(__file__).parent / "nim_trellis" / "run_trellis.py"
-            print(f"🚀 Starting Trellis NIM via {script_path}")
+            print(f"Starting Trellis NIM via {script_path}")
             popen_kwargs = {}
             if os.name == "nt":
                 popen_kwargs["creationflags"] = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
@@ -234,7 +234,7 @@ def _ensure_trellis_nim_started():
                 popen_kwargs["start_new_session"] = True
             _trellis_process = subprocess.Popen([sys.executable, str(script_path)], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, **popen_kwargs)
         except Exception as e:
-            print(f"❌ Failed to start Trellis NIM: {e}")
+            print(f"Failed to start Trellis NIM: {e}")
 
     threading.Thread(target=_runner, daemon=True).start()
 
@@ -251,25 +251,25 @@ def stop_llm_container(force=False):
     if not _in_workspace_mode and not force:
         return
     if not force and not is_llm_should_be_stopped():
-        print("🔒 LLM NIM container is not stopping because VRAM threshold is met")
+        print("LLM NIM container is not stopping because VRAM threshold is met")
         return
     try:
-        print("🛑 Stopping LLM NIM container...")
-        print(f"🕐 Timestamp before stop_container: {time.time()}")
+        print("Stopping LLM NIM container...")
+        print(f"Timestamp before stop_container: {time.time()}")
         success = stop_container()
-        print(f"🕐 Timestamp after stop_container: {time.time()}")
+        print(f"Timestamp after stop_container: {time.time()}")
         time.sleep(2)
         gc.collect()
         torch.cuda.empty_cache()
         _nim_bootstrap_started = False
         if success:
-            print("✅ LLM NIM container stopped and bootstrap reset")
-            print(f"🕐 Timestamp after container stop completion: {time.time()}")
+            print("LLM NIM container stopped and bootstrap reset")
+            print(f"Timestamp after container stop completion: {time.time()}")
         else:
-            print("⚠️ LLM NIM container stop command executed (may not have been running)")
-            print(f"🕐 Timestamp after container stop completion: {time.time()}")
+            print("LLM NIM container stop command executed (may not have been running)")
+            print(f"Timestamp after container stop completion: {time.time()}")
     except Exception as e:
-        print(f"❌ Error stopping LLM container: {e}")
+        print(f"Error stopping LLM container: {e}")
         time.sleep(2)
         gc.collect()
         torch.cuda.empty_cache()
@@ -282,7 +282,7 @@ def stop_trellis_container(force=True):
  
     
     try:
-        print("🛑 Stopping Trellis NIM container...")
+        print("Stopping Trellis NIM container...")
         from nim_trellis.manager import stop_container as stop_trellis_container_func
         success = stop_trellis_container_func()
         time.sleep(2)
@@ -290,11 +290,11 @@ def stop_trellis_container(force=True):
         torch.cuda.empty_cache()
         _trellis_bootstrap_started = False
         if success:
-            print("✅ Trellis NIM container stopped and bootstrap reset")
+            print("Trellis NIM container stopped and bootstrap reset")
         else:
-            print("⚠️ Trellis NIM container stop command executed (may not have been running)")
+            print("Trellis NIM container stop command executed (may not have been running)")
     except Exception as e:
-        print(f"❌ Error stopping Trellis container: {e}")
+        print(f"Error stopping Trellis container: {e}")
         time.sleep(2)
         gc.collect()
         torch.cuda.empty_cache()
@@ -327,9 +327,9 @@ def create_app():
     _termination_server_thread = termination_server
     try:
         termination_server.start()
-        print("✅ Termination server started on localhost:12345")
+        print("Termination server started on localhost:12345")
     except Exception as e:
-        print(f"⚠️ Failed to start termination server: {e}")
+        print(f"Failed to start termination server: {e}")
         print("   External termination requests will not be available")
         _termination_server_thread = None
 
@@ -492,7 +492,7 @@ def create_app():
             # Valid scene with gallery data - proceed with transition
             new_counter = current_counter + 1
             _in_workspace_mode = True
-            print(f"✅ Transitioning to workspace mode, counter: {new_counter}")
+            print(f"Transitioning to workspace mode, counter: {new_counter}")
             return (
                 gr.update(visible=True),                 # show workspace
                 gr.update(elem_classes=["main-content"]), # remove landing centering
@@ -506,12 +506,12 @@ def create_app():
             _in_workspace_mode = False
             
             # Clean up SANA pipeline when going back to first screen
-            print("🧹 Cleaning up SANA pipeline...")
+            print("Cleaning up SANA pipeline...")
             try:
                 image_generation_service.cleanup_sana_pipeline()
-                print("✅ SANA pipeline cleaned up successfully")
+                print("SANA pipeline cleaned up successfully")
             except Exception as e:
-                print(f"⚠️ Error cleaning up SANA pipeline: {e}")
+                print(f"Error cleaning up SANA pipeline: {e}")
             
             # Check if both services are ready before showing chat
             llm_health_url = f"{config.AGENT_BASE_URL}/health/ready"
@@ -564,23 +564,23 @@ def create_app():
         
         # New: Generate images for all objects after moving to workspace
         def generate_images_for_gallery(gallery_data):
-            print(f"🕐 Timestamp before generate_images_for_gallery: {time.time()}")
+            print(f"Timestamp before generate_images_for_gallery: {time.time()}")
             # Only proceed if we're in workspace mode (valid scene input)
             global _in_workspace_mode
             if not _in_workspace_mode:
                 return gallery_data
             
-            print(f"🕐 Timestamp after generate_images_for_gallery: {time.time()}")
+            print(f"Timestamp after generate_images_for_gallery: {time.time()}")
             try:
                 if not gallery_data:
                     return gallery_data
-                print("🎨 Generating images for all objects (step 2)...")
-                print(f"🕐 Timestamp before generate_images_for_objects: {time.time()}")
+                print("Generating images for all objects (step 2)...")
+                print(f"Timestamp before generate_images_for_objects: {time.time()}")
                 success, message, generated_images = image_generation_service.generate_images_for_objects(gallery_data, output_dir=config.GENERATED_IMAGES_DIR)
-                print(f"🕐 Timestamp after generate_images_for_objects: {time.time()}")
+                print(f"Timestamp after generate_images_for_objects: {time.time()}")
                 if image_generation_service.if_sana_pipeline_movement_required():
                     image_generation_service.move_sana_pipeline_to_cpu()
-                    print(f"🕐 Timestamp after move_sana_pipeline_to_cpu: {time.time()}")
+                    print(f"Timestamp after move_sana_pipeline_to_cpu: {time.time()}")
                 if success and generated_images:
                     updated_data = []
                     for obj in gallery_data:
@@ -590,16 +590,16 @@ def create_app():
                             new_obj["path"] = generated_images[object_name]
                             # Clear any previous failure flags since image generation succeeded
                             new_obj = clear_image_generation_failure_flags(new_obj)
-                            print(f"✅ Generated image for {object_name}: {generated_images[object_name]}")
+                            print(f"Generated image for {object_name}: {generated_images[object_name]}")
                         else:
-                            print(f"⚠️ No image generated for {object_name}")
+                            print(f"No image generated for {object_name}")
                         # Clear image generation flag after completion
                         if "image_generating" in new_obj:
                             new_obj["image_generating"] = False
                         updated_data.append(new_obj)
                     return updated_data
                 else:
-                    print(f"❌ Image generation failed: {message}")
+                    print(f"Image generation failed: {message}")
                     # Clear image generation flag even on failure
                     if not gallery_data:
                         return gallery_data
@@ -611,7 +611,7 @@ def create_app():
                         updated_data.append(new_obj)
                     return updated_data
             except Exception as e:
-                print(f"❌ Error during image generation: {str(e)}")
+                print(f"Error during image generation: {str(e)}")
                 # Clear image generation flag even on exception
                 if not gallery_data:
                     return gallery_data
@@ -656,28 +656,28 @@ def create_app():
 
             if _in_workspace_mode and current_counter == 0:
                 # add kill app logic here
-                print("🚨 DETECTED BROWSER REFRESH: In workspace mode but counter is 0")
-                print("🚨 This indicates browser refresh or state corruption - killing app")
-                print("🧹 Cleaning up resources...")
+                print("DETECTED BROWSER REFRESH: In workspace mode but counter is 0")
+                print("This indicates browser refresh or state corruption - killing app")
+                print("Cleaning up resources...")
                 
                 # Stop the termination server
                 if _termination_server_thread:
-                    print("🛑 Stopping termination server...")
+                    print("Stopping termination server...")
                     try:
                         _termination_server_thread.stop()
-                        print("✅ Termination server stopped")
+                        print("Termination server stopped")
                     except Exception as e:
-                        print(f"⚠️ Error stopping termination server: {e}")
+                        print(f"Error stopping termination server: {e}")
                 
                 # Stop both NIM containers
-                print("🛑 Stopping LLM NIM container...")
+                print("Stopping LLM NIM container...")
                 stop_llm_container(force=True)
                 
-                print("🛑 Stopping Trellis NIM container...")
+                print("Stopping Trellis NIM container...")
                 stop_trellis_container(force=True)
                 
-                print("✅ Cleanup completed")
-                print("👋 Application shutdown complete")
+                print("Cleanup completed")
+                print("Application shutdown complete")
                 os._exit(0)
             
             
@@ -719,7 +719,7 @@ def create_app():
             show_refresh = True
             # Stop timer if we're in workspace mode
             timer_active = not _in_workspace_mode
-            print(f"🔍 Checking services health... LLM: {llm_ready}, Trellis: {trellis_ready}, in_workspace_mode: {_in_workspace_mode} timer_active: {timer_active}")
+            print(f"Checking services health... LLM: {llm_ready}, Trellis: {trellis_ready}, in_workspace_mode: {_in_workspace_mode} timer_active: {timer_active}")
             return gr.update(visible=show_spinner), gr.update(value=status_html), gr.update(visible=show_chat), gr.update(visible=show_refresh), gr.update(active=timer_active)
         
         # Timer for initial health polling (only active until we reach workspace mode)
@@ -956,7 +956,7 @@ def create_app():
                         # Create a copy and mark as generating
                         updated_data = gallery_data.copy()
                         updated_data[card_idx]["image_generating"] = True
-                        print(f"🔍 DEBUG: Set image_generating=True for card {card_idx}")
+                        print(f"DEBUG: Set image_generating=True for card {card_idx}")
                         
                         # Disable all buttons globally
                         updated_data = disable_all_buttons_for_image_operations(updated_data)
@@ -964,12 +964,12 @@ def create_app():
                         # Return the updated data immediately to show generating state
                         return updated_data
                     else:
-                        print(f"🔍 DEBUG: Card index {card_idx} out of range")
+                        print(f"DEBUG: Card index {card_idx} out of range")
                         return gallery_data
                 
                 def perform_image_refresh(gallery_data):
                     """Second stage: perform the actual image refresh."""
-                    print(f"🔍 DEBUG: Performing actual image refresh for card {card_idx}")
+                    print(f"DEBUG: Performing actual image refresh for card {card_idx}")
                     result = refresh_handler(card_idx, gallery_data)
                     
                     # Re-enable all buttons after image refresh completes (success or failure)
@@ -1022,7 +1022,7 @@ def create_app():
                         # Create a copy and mark as generating
                         updated_data = gallery_data.copy()
                         updated_data[card_idx]["3d_generating"] = True
-                        print(f"🔍 DEBUG: Set 3d_generating=True for card {card_idx}")
+                        print(f"DEBUG: Set 3d_generating=True for card {card_idx}")
                         
                         # Disable all buttons globally if VRAM threshold is met
                         updated_data = disable_all_buttons_for_3d_generation(updated_data)
@@ -1030,11 +1030,11 @@ def create_app():
                         # Return the updated data immediately to show "⏳ 3D..." state
                         return updated_data
                     else:
-                        print(f"🔍 DEBUG: Card index {card_idx} out of range")
+                        print(f"DEBUG: Card index {card_idx} out of range")
                         return gallery_data
                 
                 def perform_3d_generation(gallery_data):
-                    print(f"🔍 DEBUG: Performing actual 3D generation for card {card_idx}")
+                    print(f"DEBUG: Performing actual 3D generation for card {card_idx}")
                     result = three_d_handler(card_idx, gallery_data)
                     
                     # Re-enable all buttons after 3D generation completes (success or failure)
@@ -1102,18 +1102,18 @@ def create_app():
             if edit_idx is not None and edit_idx < len(gallery_data):
                 # Validate the inputs
                 if not new_title or not new_title.strip():
-                    print(f"❌ Empty title provided for card {edit_idx}")
+                    print(f"Empty title provided for card {edit_idx}")
                     return gallery_data
                 
                 if not new_description or not new_description.strip():
-                    print(f"❌ Empty description provided for card {edit_idx}")
+                    print(f"Empty description provided for card {edit_idx}")
                     return gallery_data
                 
                 updated_data = gallery_data.copy()
                 
                 # Mark the specific card as generating
                 updated_data[edit_idx]["image_generating"] = True
-                print(f"🔍 DEBUG: Set image_generating=True for edit card {edit_idx}")
+                print(f"DEBUG: Set image_generating=True for edit card {edit_idx}")
                 
                 # Disable all buttons globally
                 updated_data = disable_all_buttons_for_image_operations(updated_data)
@@ -1138,7 +1138,7 @@ def create_app():
                     import random
                     new_seed = random.randint(1, 999999)
                     
-                    print(f"🔄 Updating image for '{new_title}' with new prompt and seed {new_seed}")
+                    print(f"Updating image for '{new_title}' with new prompt and seed {new_seed}")
                     print(f"   New prompt: {new_description}")
                     
                     # Generate new image using SANA service with the updated prompt
@@ -1149,9 +1149,9 @@ def create_app():
                         seed=new_seed
                     )
                     if image_generation_service.if_sana_pipeline_movement_required():
-                        print(f"🕐 Timestamp after generate_image_from_prompt: {time.time()}")
+                        print(f"Timestamp after generate_image_from_prompt: {time.time()}")
                         image_generation_service.move_sana_pipeline_to_cpu()
-                        print(f"🕐 Timestamp after move_sana_pipeline_to_cpu: {time.time()}")
+                        print(f"Timestamp after move_sana_pipeline_to_cpu: {time.time()}")
 
                     invalidate_reason = None
                     
@@ -1164,7 +1164,7 @@ def create_app():
                         updated_data[edit_idx] = clear_image_generation_failure_flags(updated_data[edit_idx])
                         
                         invalidate_reason = "image update"
-                        print(f"✅ Successfully generated new image: {new_image_path}")
+                        print(f"Successfully generated new image: {new_image_path}")
                     elif message == "PROMPT_CONTENT_FILTERED":
                         # Handle 2D prompt content filtered case
                         updated_data[edit_idx]["path"] = "static/images/content_filtered.svg"
@@ -1172,13 +1172,13 @@ def create_app():
                         updated_data[edit_idx]["prompt_content_filtered_timestamp"] = datetime.datetime.now().isoformat()
                         
                         invalidate_reason = "2D prompt content filtered"
-                        print(f"🚫 2D prompt content filtered for '{new_title}' - using dummy image")
+                        print(f"2D prompt content filtered for '{new_title}' - using dummy image")
                     else:
                         updated_data[edit_idx]["image_generation_failed"] = True
                         updated_data[edit_idx]["image_generation_error"] = message
 
                         invalidate_reason = "image generation failed"
-                        print(f"❌ Failed to generate new image: {message}")
+                        print(f"Failed to generate new image: {message}")
                     
                     # Clear the image_generating flag since the operation is complete
                     if "image_generating" in updated_data[edit_idx]:
@@ -1194,7 +1194,7 @@ def create_app():
                     return updated_data
                 return gallery_data
             except Exception as e:
-                print(f"❌ Error in edit update: {str(e)}")
+                print(f"Error in edit update: {str(e)}")
                 # Ensure we clear the image_generating flag and re-enable buttons even on exception
                 updated_data = gallery_data.copy()
                 if edit_idx is not None and edit_idx < len(updated_data):
@@ -1241,17 +1241,17 @@ def create_app():
             def create_delete_function(card_idx):
                 def delete_specific_card(gallery_data):
                     if card_idx < len(gallery_data):
-                        print(f"🗑️ Deleting card at index: {card_idx} title: {gallery_data[card_idx]['title']}")
+                        print(f"Deleting card at index: {card_idx} title: {gallery_data[card_idx]['title']}")
                         # Check if this card has a 3D asset that will be removed
                         has_3d_asset = gallery_data[card_idx].get("glb_path") and gallery_data[card_idx]["glb_path"]
                         if has_3d_asset:
-                            print(f"🗑️ Removing 3D asset: {gallery_data[card_idx]['glb_path']}")
+                            print(f"Removing 3D asset: {gallery_data[card_idx]['glb_path']}")
                         
                         # Remove the card from gallery data
                         updated_data = [item for i, item in enumerate(gallery_data) if i != card_idx]
                         return updated_data
                     else:
-                        print(f"❌ Card index {card_idx} out of range")
+                        print(f"Card index {card_idx} out of range")
                         return gallery_data
                 return delete_specific_card
             
@@ -1329,58 +1329,61 @@ def create_app():
 if __name__ == "__main__":
     app = None
     try:
-        print("🚀 Starting Chat-to-3D application...")
+        print("Starting Chat-to-3D application...")
+        print("Starting app creation")
         app = create_app()
+        print("app created, launching app...")
         app.launch(debug=True, server_name="127.0.0.1", server_port=7860, share=False, quiet=True)
+        print("app Launched")
     except KeyboardInterrupt:
-        print("\n🛑 Keyboard interrupt received...")
+        print("\nKeyboard interrupt received...")
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\nUnexpected error: {e}")
     finally:
-        print("🧹 Cleaning up resources...")
+        print("Cleaning up resources...")
         try:
             # Stop the termination server
             if _termination_server_thread:
-                print("🛑 Stopping termination server...")
+                print("Stopping termination server...")
                 try:
                     _termination_server_thread.stop()
-                    print("✅ Termination server stopped")
+                    print("Termination server stopped")
                 except Exception as e:
-                    print(f"⚠️ Error stopping termination server: {e}")
+                    print(f"Error stopping termination server: {e}")
             
             # Stop the LLM NIM process if it's running
             if _nim_process and _nim_process.poll() is None:
-                print("🛑 Stopping LLM NIM process...")
+                print("Stopping LLM NIM process...")
                 try:
                     _nim_process.terminate()
                     _nim_process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    print("⚠️ LLM NIM process didn't stop gracefully, forcing...")
+                    print("LLM NIM process didn't stop gracefully, forcing...")
                     _nim_process.kill()
                 except Exception as e:
-                    print(f"⚠️ Error stopping LLM NIM process: {e}")
+                    print(f"Error stopping LLM NIM process: {e}")
             
             # Stop the Trellis NIM process if it's running
             if _trellis_process and _trellis_process.poll() is None:
-                print("🛑 Stopping Trellis NIM process...")
+                print("Stopping Trellis NIM process...")
                 try:
                     _trellis_process.terminate()
                     _trellis_process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    print("⚠️ Trellis NIM process didn't stop gracefully, forcing...")
+                    print("Trellis NIM process didn't stop gracefully, forcing...")
                     _trellis_process.kill()
                 except Exception as e:
-                    print(f"⚠️ Error stopping Trellis NIM process: {e}")
+                    print(f"Error stopping Trellis NIM process: {e}")
             
             # Stop both NIM containers
-            print("🛑 Stopping LLM NIM container...")
+            print("Stopping LLM NIM container...")
             stop_llm_container(force=True)
             
-            print("🛑 Stopping Trellis NIM container...")
+            print("Stopping Trellis NIM container...")
             stop_trellis_container(force=True)
            
-            print("✅ Cleanup completed")
+            print("Cleanup completed")
         except Exception as e:
-            print(f"⚠️ Error during cleanup: {e}")
+            print(f"Error during cleanup: {e}")
         finally:
-            print("👋 Application shutdown complete") 
+            print("Application shutdown complete") 
