@@ -3,6 +3,7 @@
 import logging
 import requests
 import json
+import random
 from datetime import datetime
 from enum import Enum
 from griptape.structures import Agent
@@ -97,6 +98,8 @@ class LLMAgent:
                 base_url=AGENT_BASE_URL,
                 api_key="not-needed",
                 user="user",
+                temperature=config.LLM_TEMPERATURE,
+                seed=random.randint(1, 999999) if config.LLM_RANDOM_SEED_ENABLED else None,
             )
         except Exception as e:
             logger.error(f"Failed to initialize prompt driver: {e}")
@@ -291,6 +294,27 @@ Scene arrangement: [Brief description of how these objects could be arranged tog
             return False, None, f"Error generating prompts: {str(e)}"
     
     def clear_memory(self):
-        """Clear the agent's conversation memory."""
+        """Clear the agent's conversation memory and reset with new randomization."""
         self.agent.clear_memory()
+        
+        # Reinitialize the agent with new random seed and temperature
+        if config.LLM_RANDOM_SEED_ENABLED:
+            # Slightly vary the temperature for additional randomness
+            temperature_variation = random.uniform(-0.3, 0.3)  # ±0.3 variation
+            new_temperature = max(0.1, min(1.0, config.LLM_TEMPERATURE + temperature_variation))
+            
+            # Create new prompt driver with fresh randomization
+            new_prompt_driver = OpenAiChatPromptDriver(
+                model=config.AGENT_MODEL,
+                base_url=config.AGENT_BASE_URL,
+                api_key="not-needed",
+                user="user",
+                temperature=new_temperature,
+                seed=random.randint(1, 999999),
+            )
+            
+            # Update the agent's prompt driver
+            self.agent.agent.prompt_driver = new_prompt_driver
+            logger.info(f"Agent reinitialized with new temperature: {new_temperature:.3f} and random seed")
+        
         return True 

@@ -71,4 +71,32 @@ def create_edit_modal():
         with gr.Row():
             cancel_btn = gr.Button("Cancel", elem_id="cancel-edit-btn", variant="secondary")
             update_btn = gr.Button("Update & Generate", elem_id="update-edit-btn", variant="secondary")
-    return edit_modal, edit_title, edit_description, cancel_btn, update_btn 
+    return edit_modal, edit_title, edit_description, cancel_btn, update_btn
+
+def create_start_over_confirmation_modal():
+    """Create a confirmation modal for the start over button."""
+    with gr.Group(elem_id="start-over-confirmation-modal", visible=False) as confirmation_modal:
+        gr.Markdown(
+            "### Start Over with New Scene",
+            elem_classes=["modal-title"]
+        )
+        gr.Markdown(
+            "⚠️ **Warning:** This action will clear your current scene and all generated assets.\n\n"
+            "**Please make sure you have saved any 3D assets if required before proceeding.**\n\n"
+            "Are you sure you want to start over?",
+            elem_classes=["confirmation-message"]
+        )
+        with gr.Row():
+            cancel_btn = gr.Button("Cancel", variant="secondary", elem_classes=["modal-cancel-btn"])
+            confirm_btn = gr.Button("Yes, Start Over", variant="stop", elem_classes=["modal-confirm-btn"])
+    return confirmation_modal, cancel_btn, confirm_btn
+
+def open_start_over_confirmation():
+    """Open the start over confirmation modal."""
+    overlay_html = "<div id='modal-overlay' style='display:block; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); z-index:999;'></div>"
+    return overlay_html
+
+def close_start_over_confirmation():
+    """Close the start over confirmation modal."""
+    overlay_html = "<div id='modal-overlay' style='display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); z-index:999;'></div>"
+    return overlay_html 
