@@ -155,29 +155,32 @@ Once the application is running, you can:
    </kbd>
 2. **Asset Generation**:
    - The LLM will automatically create prompts for suggested items which will be sent to the 2D image generator
-     <kdb>
+     <kbd>
      <img width="1606" height="1352" alt="image" src="https://github.com/user-attachments/assets/55b11095-1b0a-42c5-95e6-7d32f56ed72f" />
-     </kdb>
+     </kbd>
+     
    - Each image contains additional controls
-     <kdb>
+     
+     <kbd>
      <img width="640" height="370" alt="image" src="https://github.com/user-attachments/assets/6a03b8ab-ee65-40ee-a458-ef64475d7a50" />
-     </kdb>
-   -![image](https://github.com/user-attachments/assets/5dfb5ba2-c718-4594-8a9b-b4584f5599fb)
+     </kbd>
+     
+     - <img width="86" height="74" alt="image" src="https://github.com/user-attachments/assets/4dd79a46-bb97-46f9-bcba-905606c168bf" /> **Refresh** - Generate a new image based on the existing prompt.
+     - <img width="87" height="69" alt="image" src="https://github.com/user-attachments/assets/577d88ee-fc54-47f2-be77-922d0df2fba0" /> **Edit** - Edit the prompt an generate a new image.
+     - <img width="77" height="65" alt="image" src="https://github.com/user-attachments/assets/7e740931-29e0-4ff4-af0b-cc080e130c2a" /> **Delete** - Remove the image from the gallery display.
+     - <img width="114" height="63" alt="image" src="https://github.com/user-attachments/assets/e125e259-bf10-4e28-97f1-b416c08a168e" /> **Generate 3D** - Generate a 3D object from the image.
 
-   - Select a desired variant and click Select this Variant button
-   - ![image](https://github.com/user-attachments/assets/8f3a488f-f50d-4586-ab1c-76f6d7e54c49)
-  
-   - Select a Single Image and click *Generate 3D Model for Selected Variant* button
-   - Or click *Generate 3D Models for all Selected Variants* button
-   - ![image](https://github.com/user-attachments/assets/d028ec91-b279-4057-ade1-ea4e15cf9454)
-  
-   - Preview generated assets
-   - ![image](https://github.com/user-attachments/assets/593bcb43-a4ef-4f8a-b2ba-94d3cbb7a57e)
 
-   - Save generated asset to a scene folder
-   - Create a unique folder output for all objects generated in this session
-   - ![image](https://github.com/user-attachments/assets/dddae747-0f54-43bc-9fc8-620e35f44a1f)
 
+<img width="2313" height="125" alt="image" src="https://github.com/user-attachments/assets/8ca38e36-c245-4e06-93e9-5bec518025c9" />
+   - Convert all images to 3D Objects (Delete unwanted images before converting to 3D)
+
+2. **Save Objects**:
+   - The Export Objects to File allows saving the generated objects to a folder.
+   <kbd>
+   <img width="2384" height="613" alt="image" src="https://github.com/user-attachments/assets/21a5b43f-7dda-42d9-bbf3-40518a3d3754" />
+   </kbd>
+   <img width="50%" height="50%" alt="image" src="https://github.com/user-attachments/assets/b302f89a-e282-4a22-ba8a-607cc2a40c82" />
 
 4. **Blender Integration**:
    - Import generated assets directly into Blender
