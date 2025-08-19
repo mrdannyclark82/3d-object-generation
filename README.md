@@ -147,7 +147,6 @@ The CHAT-TO-3D Blender add-on can automatically manage the CHAT-TO-3D services w
 13. Click the OPEN CHAT-TO-3D UI button to launch the CHAT-TO-3D interface
     
 ### Using the Interface
-![image](https://github.com/user-attachments/assets/8590e6fd-32cb-4974-bcc9-284ef7d1eaa2)
 Once the application is running, you can:
 1. **Scene Planning**:
    - Describe your desired scene in natural language
