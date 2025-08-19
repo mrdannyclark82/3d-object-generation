@@ -64,13 +64,14 @@ winget install --id 9NW1B444LDLW
 ```
 ### Initilize Conda
 1. From the Windows Start button, open a Anaconda (Miniconda) Prompt
-2. ![image](https://github.com/user-attachments/assets/a53c4eb6-fb96-4f72-8cee-3aa12e0a470e)
+2. <img width="827" height="78" alt="image" src="https://github.com/user-attachments/assets/0cd7a72f-54ba-44b1-91b5-f58628665568" />
 3. You should see the command prompt with prompt prefixed with the (base) conda environment name
 4. Initialize Conda for your system
 ```
 conda init
 ```
-5. ![image](https://github.com/user-attachments/assets/5dbe45a3-c11b-4392-9474-42966066ddfe)
+5. <img width="1159" height="863" alt="image" src="https://github.com/user-attachments/assets/12cd9d81-1803-488f-83b4-d556fb72bd3c" />
+
 6. Close the command prompt
 
 #### Installation Steps
@@ -106,7 +107,7 @@ Press any key to continue . . .
 conda activate trellis
 cd 3d-object-generation
 
-python app.y
+python app.py
 ```
 4. Open your browser to the URL shown in the terminal (typically http://127.0.0.1:7860)
 
@@ -130,10 +131,10 @@ The CHAT-TO-3D Blender add-on can automatically manage the CHAT-TO-3D services w
 ### Initial Setup Step
 1. Open Blender
 2. Open Edit >> Preferences >> Add-Ons
-3.![image](https://github.com/user-attachments/assets/0dd045e1-225a-425f-9f96-9047f3ad476a)
+3.<img width="995" height="380" alt="image" src="https://github.com/user-attachments/assets/02c7fb78-52fc-4e36-a4d9-89dbc150a3ef" />
 4. Enable CHAT-To-3D and Asset Importer by checking the boxes next to the add on names.
 5. Open the CHAT-TO-3D add on preferences and set the CHAT-TO-3D base folder to the chat-to-3d local repository directory.
-6. ![image](https://github.com/user-attachments/assets/1f9b6bec-dd13-4a7b-9a02-ac9c84a56869)
+6. <img width="1492" height="699" alt="image" src="https://github.com/user-attachments/assets/a22521a8-14e4-4890-80e5-9a1167c5a846" />
 ### Normal Usage
 7. In the 3D layout view look for the Add On tabs on the right edge of the viewport, press N if they are not visible
 8. ![image](https://github.com/user-attachments/assets/2bfc6cb2-aa3a-4422-b1d1-a983ed21407d)
@@ -149,20 +150,9 @@ The CHAT-TO-3D Blender add-on can automatically manage the CHAT-TO-3D services w
 Once the application is running, you can:
 1. **Scene Planning**:
    - Describe your desired scene in natural language
-   - ![image](https://github.com/user-attachments/assets/38c408f6-219e-4fdc-93f4-5abaea80b391)
-
-   - Get AI suggestions for objects and layout
-   - ![image](https://github.com/user-attachments/assets/40f3c85e-2024-499b-bc1c-926d478f0555)
-  
-   - Select the desired objects
-   - ![image](https://github.com/user-attachments/assets/7e389a1b-f9da-4d1f-bc45-e854e8b6cee3)
-
-   - Refine your scene description
-   - ![image](https://github.com/user-attachments/assets/5779fbb4-40ad-437a-8f3f-7f4191df1cdd)
-  
-   - Generate 3D Prompts for selected objects
-   - ![image](https://github.com/user-attachments/assets/cadf5ba7-516f-4fee-9992-ac4e70c0f6d6)
-
+   <kbd>
+   <img width="1508" height="999" alt="image" src="https://github.com/user-attachments/assets/a65600ee-3507-4bb1-86d9-66d734134f63" />
+   </kbd>
 2. **Asset Generation**:
    - Modify the generated prompt if desired
    - Generate object variant previews for a single object or for all objects
