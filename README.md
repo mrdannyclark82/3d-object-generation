@@ -137,12 +137,13 @@ The CHAT-TO-3D Blender add-on can automatically manage the CHAT-TO-3D services w
 6. <img width="1492" height="699" alt="image" src="https://github.com/user-attachments/assets/a22521a8-14e4-4890-80e5-9a1167c5a846" />
 ### Normal Usage
 7. In the 3D layout view look for the Add On tabs on the right edge of the viewport, press N if they are not visible
-8. ![image](https://github.com/user-attachments/assets/2bfc6cb2-aa3a-4422-b1d1-a983ed21407d)
+8. <img width="598" height="808" alt="image" src="https://github.com/user-attachments/assets/76e6332a-0945-4b60-a073-03e8bed29e63" />
+
 9. Note: It is recommended to open a system console viewer to monitor the services and any information or errors that may be output.
    a. Blender Menu >> Window >> Toggle System Console
-10. Click the Start CHAT-TO-3D button to start the LLM agent, and the Trellis 3D services.
-11. ![image](https://github.com/user-attachments/assets/b5391eed-0cca-45da-952a-04381804c0b5)
-12. Once all services have successfully started, the service will indicate: READY and the OPEN CHAT-TO-3D UI button will become available
+10. Click the Start CHAT-TO-3D button to start the LLM agent, and the Trellis 3D services. (It may take up to 3 minutes for all services to fully load and start)
+11. Once all services have successfully started, the service will indicate: READY and the OPEN CHAT-TO-3D UI button will become available
+12. <img width="400" height="309" alt="image" src="https://github.com/user-attachments/assets/adfb5d40-b2e1-486a-8230-d003dd04b886" />
 13. Click the OPEN CHAT-TO-3D UI button to launch the CHAT-TO-3D interface
     
 ### Using the Interface
@@ -184,11 +185,11 @@ Once the application is running, you can:
 
 4. **Blender Integration**:
    - Import generated assets directly into Blender
-   - ![image](https://github.com/user-attachments/assets/e6942a0c-6e03-4cbb-9bd6-63507e7eddac)
+   - <img width="455" height="222" alt="image" src="https://github.com/user-attachments/assets/11b4f471-3fb1-4980-bba6-338886219202" />
    - Use the Asset Importer add-on and select the desired scene folder, and click Import assets
-   - ![image](https://github.com/user-attachments/assets/b9119900-1780-42cd-a071-6f7d9397984e)
+   - <img width="498" height="133" alt="image" src="https://github.com/user-attachments/assets/da88971b-ce42-454c-b3db-3ec8f32d0f68" />
    - Assets are imported and the asset tag is applied, saving the scene to the %userprofile%\Documents\Blender\assets folder will add the imported objects to the Blender asset browser.
-   - ![image](https://github.com/user-attachments/assets/c3d705c1-fc21-4137-a6e1-004c9d9b0b5a)
+   - <img width="1933" height="1234" alt="image" src="https://github.com/user-attachments/assets/f148936c-27da-428c-9d92-5603446deb37" />
    - Continue working with the assets in your 3D workflow
    - Can be used with  [3D Guided Gen AI BP](https://github.com/NVIDIA-AI-Blueprints/3d-guided-genai-rtx)
 
