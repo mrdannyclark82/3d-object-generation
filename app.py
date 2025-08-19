@@ -23,7 +23,7 @@ from components.chat_interface import create_chat_interface, handle_scene_descri
 from components.image_gallery import create_image_gallery
 from components.blender_export import create_blender_export_section, update_export_section, create_export_modal, open_export_modal, close_export_modal, export_3d_assets_to_folder
 from components.status_panel import create_status_panel
-from components.modal import create_modal, open_image_settings, close_modal, create_edit_modal
+from components.modal import create_modal, open_image_settings, close_modal, create_edit_modal, create_start_over_confirmation_modal, open_start_over_confirmation, close_start_over_confirmation
 from components.image_card import create_refresh_handler, create_3d_generation_handler, create_convert_all_3d_handler, invalidate_3d_model
 from services.agent_service import AgentService
 from services.image_generation_service import ImageGenerationService
@@ -414,6 +414,9 @@ def create_app():
                 # Export modal components
                 export_modal, scene_folder_input, export_cancel_btn, export_save_btn = create_export_modal()
                 export_modal.visible = False
+                
+                # Start over confirmation modal components
+                confirmation_modal, confirmation_cancel_btn, confirmation_confirm_btn = create_start_over_confirmation_modal()
                    
                 # Session state to track legitimate transitions for browser refresh detection
                 session_transition_counter = gr.State(0)
@@ -839,11 +842,38 @@ def create_app():
             outputs=[start_over_btn]
         )
 
-        # Start over button: clear gallery/export and return to landing screen
+        # Start over button: show confirmation dialog first
+        start_over_btn.click(
+            fn=open_start_over_confirmation,
+            inputs=[],
+            outputs=[overlay]
+        ).then(
+            fn=lambda: gr.update(visible=True),
+            outputs=[confirmation_modal]
+        )
+        
+        # Confirmation modal cancel button: close modal
+        confirmation_cancel_btn.click(
+            fn=close_start_over_confirmation,
+            inputs=[],
+            outputs=[overlay]
+        ).then(
+            fn=lambda: gr.update(visible=False),
+            outputs=[confirmation_modal]
+        )
+        
+        # Confirmation modal confirm button: proceed with start over
         def clear_gallery_state(_):
             return []
 
-        start_over_btn.click(
+        confirmation_confirm_btn.click(
+            fn=close_start_over_confirmation,
+            inputs=[],
+            outputs=[overlay]
+        ).then(
+            fn=lambda: gr.update(visible=False),
+            outputs=[confirmation_modal]
+        ).then(
             fn=clear_gallery_state,
             inputs=[gallery_components["data"]],
             outputs=[gallery_components["data"]]

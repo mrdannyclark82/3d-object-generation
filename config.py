@@ -85,6 +85,10 @@ AGENT_BASE_URL ="http://localhost:19002/v1"
 TRELLIS_BASE_URL = "http://localhost:8000/v1"
 TWO_D_PROMPT_LENGTH = 30
 
+# LLM randomization settings
+LLM_TEMPERATURE = 0.4  # Controls randomness in LLM responses (0.0 = deterministic, 1.0 = very random)
+LLM_RANDOM_SEED_ENABLED = True  # Enable random seed for object generation
+
 # Simple helper functions
 def get_static_paths():
     """Get static asset paths."""
