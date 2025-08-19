@@ -154,8 +154,14 @@ Once the application is running, you can:
    <img width="1508" height="999" alt="image" src="https://github.com/user-attachments/assets/a65600ee-3507-4bb1-86d9-66d734134f63" />
    </kbd>
 2. **Asset Generation**:
-   - Modify the generated prompt if desired
-   - Generate object variant previews for a single object or for all objects
+   - The LLM will automatically create prompts for suggested items which will be sent to the 2D image generator
+     <kdb>
+     <img width="1606" height="1352" alt="image" src="https://github.com/user-attachments/assets/55b11095-1b0a-42c5-95e6-7d32f56ed72f" />
+     </kdb>
+   - Each image contains additional controls
+     <kdb>
+     <img width="640" height="370" alt="image" src="https://github.com/user-attachments/assets/6a03b8ab-ee65-40ee-a458-ef64475d7a50" />
+     </kdb>
    -![image](https://github.com/user-attachments/assets/5dfb5ba2-c718-4594-8a9b-b4584f5599fb)
 
    - Select a desired variant and click Select this Variant button
