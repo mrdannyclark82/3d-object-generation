@@ -156,12 +156,9 @@ signal.signal(signal.SIGTERM, signal_handler)
 try:
     with open(config.CUSTOM_CSS_FILE) as f:
         custom_css = f.read()
-    with open(config.CUSTOM_JS_FILE) as f:
-        custom_js = f.read()
 except FileNotFoundError:
     print("Custom CSS and JS not found")
     custom_css = ""
-    custom_js = ""
 
 # Load NVIDIA logo
 try:
@@ -358,7 +355,6 @@ def create_app():
         
         # Inject custom CSS and JS
         gr.HTML(f"<style>{custom_css}</style>")
-        gr.HTML(f"<script>{custom_js}</script>")
         
         # Header with NVIDIA branding and status
         with gr.Row(elem_classes=["header-section"]):
@@ -720,8 +716,8 @@ def create_app():
             # Build status display
             llm_color = "#16be16" if llm_ready else "#f59e0b"
             trellis_color = "#16be16" if trellis_ready else "#f59e0b"
-            llm_label = "LLM: ready" if llm_ready else "LLM: down"
-            trellis_label = "Trellis: ready" if trellis_ready else "Trellis: down"
+            llm_label = "LLM: ready" if llm_ready else "LLM: not ready"
+            trellis_label = "Trellis: ready" if trellis_ready else "Trellis: not ready"
             
             status_html = f'''
             <div class="status-section">

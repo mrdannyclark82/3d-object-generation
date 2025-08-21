@@ -31,16 +31,6 @@ if %CONDA_ERRORLEVEL% NEQ 0 (
 )
 echo Conda check passed, proceeding to file checks...
 
-REM Set CHAT_TO_3D_PATH environment variable
-echo Setting CHAT_TO_3D_PATH environment variable...
-python set_environment_variable.py
-if errorlevel 1 (
-    echo [ERROR] Failed to set CHAT_TO_3D_PATH environment variable!
-    pause
-    exit /b 1
-)
-echo CHAT_TO_3D_PATH environment variable set successfully.
-
 REM Check if requirements files exist
 if not exist requirements-torch.txt (
     echo [ERROR] requirements-torch.txt not found!
@@ -131,6 +121,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
+
 REM Update pip and install build tools
 echo Updating pip and installing build tools...
 python -m pip install --upgrade pip wheel
@@ -165,6 +156,16 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+
+REM Set CHAT_TO_3D_PATH environment variable using conda Python
+echo Setting CHAT_TO_3D_PATH environment variable...
+call conda run -n trellis --no-capture-output python set_environment_variable.py
+if errorlevel 1 (
+    echo [ERROR] Failed to set CHAT_TO_3D_PATH environment variable!
+    pause
+    exit /b 1
+)
+echo CHAT_TO_3D_PATH environment variable set successfully.
 
 REM Download required models
 echo Downloading required models...
