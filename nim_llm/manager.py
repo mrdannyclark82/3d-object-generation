@@ -89,7 +89,7 @@ def stop_container() -> bool:
         # Wait for container to actually stop
         print("Waiting for container to stop...")
         start_time = time.time()
-        timeout = 15  # 15 seconds timeout
+        timeout = 5  # 5 seconds timeout
         
         while time.time() - start_time < timeout:
             if not is_container_running():
