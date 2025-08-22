@@ -109,7 +109,7 @@ cd 3d-object-generation
 
 python app.py
 ```
-4. Open your browser to the URL shown in the terminal (typically http://127.0.0.1:7860/?__theme=light)
+4. Open your browser to the URL shown in the terminal (typically http://127.0.0.1:7860/)
 
 **💡 Recommended**: For the best experience, use the light theme by accessing the application with: `http://127.0.0.1:7860/?__theme=light`
 
