@@ -237,7 +237,14 @@ def create_image_gallery():
             
             show_convert_all = has_items
             enable_convert_all = has_unconverted_items and not is_batch_processing and not any_image_generating and not any_3d_generating
-            updates.append(gr.update(visible=show_convert_all, interactive=enable_convert_all))
+            
+            # Set button text based on processing state
+            if is_batch_processing:
+                convert_all_text = "Generating - will take up to 45 secs per object"
+            else:
+                convert_all_text = "Convert all to 3D"
+            
+            updates.append(gr.update(visible=show_convert_all, interactive=enable_convert_all, value=convert_all_text))
             
             print(f"Gallery UI updated with {len(gallery_data)} visible cards")
             return updates
