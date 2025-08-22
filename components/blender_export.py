@@ -37,7 +37,7 @@ def create_blender_export_section():
         # Instructional link
         with gr.Row():
             gr.HTML(
-                value="<a href='#' style='color: #0066cc; text-decoration: none; display: flex; align-items: center; gap: 4px;'>"
+                value="<a href='https://github.com/NVIDIA-AI-Blueprints/3d-object-generation/tree/main?tab=readme-ov-file#usage---blender-add-on' target='_blank' style='color: #0066cc; text-decoration: none; display: flex; align-items: center; gap: 4px;'>"
                       "Learn how to load them into Blender's library"
                       "<svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'>"
                       "<path d='M7 7h10v10'></path>"
