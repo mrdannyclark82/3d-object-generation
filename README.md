@@ -172,13 +172,24 @@ Once the application is running, you can:
      - <img width="87" height="69" alt="image" src="https://github.com/user-attachments/assets/577d88ee-fc54-47f2-be77-922d0df2fba0" /> **Edit** - Edit the prompt an generate a new image.
      - <img width="77" height="65" alt="image" src="https://github.com/user-attachments/assets/7e740931-29e0-4ff4-af0b-cc080e130c2a" /> **Delete** - Remove the image from the gallery display.
      - <img width="114" height="63" alt="image" src="https://github.com/user-attachments/assets/e125e259-bf10-4e28-97f1-b416c08a168e" /> **Generate 3D** - Generate a 3D object from the image.
+        - The color of the Generate 3D button indicates the status of 3D generation for that object
+        -  <img width="122" height="72" alt="Screenshot 2025-08-22 141820" src="https://github.com/user-attachments/assets/f35824da-8311-4af6-ada0-a34c2795d8be" /> Object has not been queued for 3D generation.
+        -  <img width="130" height="68" alt="Screenshot 2025-08-22 141836" src="https://github.com/user-attachments/assets/b58d7341-68dd-4bdb-ae75-281f4491327d" /> Object has been queued for 3D generation, but object generation has not completed.
+        -  <img width="117" height="64" alt="Screenshot 2025-08-22 141810" src="https://github.com/user-attachments/assets/fd1119a5-b51b-4013-9c16-6cca27ed7834" /> 3D model has been generated for this object.
+        -  <img width="120" height="66" alt="Screenshot 2025-08-22 141708" src="https://github.com/user-attachments/assets/66cd9956-d622-4059-b132-2470eb2ba42f" /> Object has been flagged by guardrails as potentially inappropriate, 3D object will not be generated.
+
+
+
+
 
 
 
 <img width="2313" height="125" alt="image" src="https://github.com/user-attachments/assets/8ca38e36-c245-4e06-93e9-5bec518025c9" />
    - Convert all images to 3D Objects (Delete unwanted images before converting to 3D)
+     
+   - **NOTE**: Image to 3D Object processing takes ~45 seconds *per object* on a RTX 5090, when using the Convert All image option this time will be a multiple of the number of objects being converted, using the Convert All option may take a significant amount of time. The UI will not be updated until all objects have been converted. 
 
-2. **Save Objects**:
+3. **Save Objects**:
    - The Export Objects to File allows saving the generated objects to a folder.
    <kbd>
    <img width="2384" height="613" alt="image" src="https://github.com/user-attachments/assets/21a5b43f-7dda-42d9-bbf3-40518a3d3754" />
