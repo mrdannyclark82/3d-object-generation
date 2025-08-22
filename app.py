@@ -348,7 +348,7 @@ def create_app():
         _termination_server_thread = None
 
     with gr.Blocks(
-        title="Chat-to-3D", 
+        title="3D-Object-Generator", 
         # css_paths=["static/css/custom.css"]
     ) as app:
         
@@ -716,8 +716,8 @@ def create_app():
             # Build status display
             llm_color = "#16be16" if llm_ready else "#f59e0b"
             trellis_color = "#16be16" if trellis_ready else "#f59e0b"
-            llm_label = "LLM: ready" if llm_ready else "LLM: not ready"
-            trellis_label = "Trellis: ready" if trellis_ready else "Trellis: not ready"
+            llm_label = "LLM: ready" if llm_ready else "LLM: Unloaded"
+            trellis_label = "Trellis: ready" if trellis_ready else "Trellis: Unloaded"
             
             status_html = f'''
             <div class="status-section">
