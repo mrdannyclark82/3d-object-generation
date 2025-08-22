@@ -109,8 +109,11 @@ cd 3d-object-generation
 
 python app.py
 ```
-4. Open your browser to the URL shown in the terminal (typically http://127.0.0.1:7860)
+4. Open your browser to the URL shown in the terminal (typically http://127.0.0.1:7860/?__theme=light)
 
+**💡 Recommended**: For the best experience, use the light theme by accessing the application with: `http://127.0.0.1:7860/?__theme=light`
+
+**⚠️ Important Note**: Browser refresh is not supported and may cause the application to crash. In that case, please restart the application instead.
 
 ### Managing the Application
 
@@ -211,4 +214,4 @@ Common issues and solutions:
 - [TRELLIS](https://github.com/microsoft/TRELLIS) for the 3D generation capabilities
 - [Griptape](https://github.com/griptape-ai/griptape) for the agent framework
 - [Gradio](https://github.com/gradio-app/gradio) for the web interface
-- [TRELLIS Windows Installation Guide](https://github.com/ericcraft-mh/TRELLIS-install-windows) for Windows setup instructions 
+
