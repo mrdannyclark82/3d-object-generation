@@ -1,6 +1,6 @@
-﻿# chat-to-3d
+﻿# 3D Object Generation
 
-An application that combines natural language processing with 3D asset generation using SANA and TRELLIS.
+An application that combines natural language processing with 3D asset generation using LLAMA, SANA and TRELLIS.
 
 ## Features
 
@@ -194,6 +194,121 @@ Once the application is running, you can:
    - <img width="1933" height="1234" alt="image" src="https://github.com/user-attachments/assets/f148936c-27da-428c-9d92-5603446deb37" />
    - Continue working with the assets in your 3D workflow
    - Can be used with  [3D Guided Gen AI BP](https://github.com/NVIDIA-AI-Blueprints/3d-guided-genai-rtx)
+
+<details><summary><h2> Manual Installation Guide for Trellis Project</h2></summary>
+
+This guide provides a step-by-step manual for setting up the Trellis environment on a Windows system with Conda, as a manual alternative to running the operations via the `install.bat` script. It covers checking prerequisites, creating a Conda environment, installing dependencies, setting environment variables, downloading models, installing Blender addons, and verifying services by starting, checking, and stopping them.
+
+**Prerequisites:**
+- Conda must be installed and added to your system's PATH.
+- Required files in the current directory: `requirements-torch.txt`, `requirements.txt`, `set_environment_variable.py`, `download_models.py`, `check_services.py`.
+- Subdirectories: `blender` (containing `NV_Trellis_Addon.py` and `asset_importer.py`), `nim_llm` (containing `run_llama.py` and `manager.py`), `nim_trellis` (containing `run_trellis.py` and `manager.py`).
+- Blender installed (versions 4.2 to 5.0 supported; defaults to 4.2 if no version detected).
+
+Run commands in a Command Prompt with administrative privileges where possible. Replace placeholders (e.g., paths) as needed for your setup.
+
+## Step 1: Check for Conda Installation
+1. Open Command Prompt.
+2. Run: `where conda`.
+3. If Conda is not found (errorlevel ≠ 0), install Conda from the official website (e.g., Miniconda or Anaconda) and add it to PATH. Exit if not installed.
+
+## Step 2: Verify Requirements Files
+1. Ensure `requirements-torch.txt` exists in the current directory. If not, obtain it and place it there.
+2. Ensure `requirements.txt` exists in the current directory. If not, obtain it and place it there.
+3. If either file is missing, stop the process and resolve the issue.
+
+## Step 3: Locate Conda Installation Path
+1. Check common Conda installation paths:
+   - `%USERPROFILE%\miniconda3`
+   - `%USERPROFILE%\AppData\Local\miniconda3`
+   - `%USERPROFILE%\anaconda3`
+2. Verify the presence of `Scripts\conda.exe` or `condabin\conda.bat` in one of these paths.
+3. If not found, verify your Conda installation and adjust paths manually. Set `CONDA_PATH` to the valid location.
+
+## Step 4: Accept Anaconda Terms of Service (If Applicable)
+1. Run the following commands to accept terms for Anaconda channels (note: this may be specific to certain setups; skip if `conda tos accept` is not recognized):
+   - `conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main`
+   - `conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r`
+   - `conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/msys2`
+2. If the command fails, check Conda documentation for equivalent configuration steps (e.g., using `conda config`).
+
+## Step 5: Create or Verify Conda Environment
+1. List existing environments: `conda env list`.
+2. If "trellis" does not exist:
+   - Create it: `conda create -n trellis python=3.11.9 -y`.
+3. If creation fails, troubleshoot Conda issues (e.g., network, permissions).
+
+## Step 6: Activate Conda Environment
+1. Activate: `conda activate trellis`.
+2. If activation fails, ensure the environment exists and retry.
+
+## Step 7: Update Pip and Install Build Tools
+1. Upgrade pip and wheel: `python -m pip install --upgrade pip wheel`.
+2. Install setuptools: `python -m pip install setuptools==75.8.2`. (Note: Version is hardcoded; use latest if needed.)
+3. If any installation fails, check pip logs or network connectivity.
+
+## Step 8: Install Torch Requirements
+1. Install packages from file: `pip install -r requirements-torch.txt`.
+2. If fails, verify the file contents and resolve dependency conflicts.
+
+## Step 9: Install Main Requirements
+1. Install packages from file: `pip install -r requirements.txt`.
+2. If fails, verify the file contents and resolve dependency conflicts.
+
+## Step 10: Set Environment Variable
+1. Run: `python set_environment_variable.py` (this sets `CHAT_TO_3D_PATH`).
+2. Verify the variable is set: `echo %CHAT_TO_3D_PATH%`.
+3. If the script fails, inspect `set_environment_variable.py` for issues.
+
+## Step 11: Download Required Models
+1. Note your current directory: `echo %cd%`.
+2. Run: `python download_models.py`.
+3. If fails, check the script for download URLs and ensure internet access.
+4. Return to the original directory if changed.
+
+## Step 12: Install Blender Addons
+1. Verify `blender` folder exists with `NV_Trellis_Addon.py` and `asset_importer.py`.
+2. Set Blender root: `%APPDATA%\Blender Foundation\Blender`.
+3. If the root doesn't exist, create it: `mkdir "%APPDATA%\Blender Foundation\Blender"`.
+4. Check for version folders (4.2 to 5.0).
+5. For each matching version (e.g., 4.2):
+   - Create addons dir if needed: `mkdir "<BlenderRoot>\<version>\scripts\addons"`.
+   - Copy files: `copy blender\NV_Trellis_Addon.py "<addons_dir>\NV_Trellis_Addon.py"` and `copy blender\asset_importer.py "<addons_dir>\asset_importer.py"`.
+6. If no versions found, create default 4.2 folder and copy addons as above.
+7. After copying, enable the addon in Blender preferences.
+
+## Step 13: Deactivate Conda Environment (Temporarily)
+1. Run: `conda deactivate`.
+
+## Step 14: Start LLM and Trellis Services
+1. Start LLM in background: Open a new Command Prompt and run `conda activate trellis && python nim_llm\run_llama.py`.
+2. Wait 10 seconds.
+3. Start Trellis in background: Open another Command Prompt and run `conda activate trellis && python nim_trellis\run_trellis.py`.
+4. Wait 10 seconds.
+5. Check running processes: `tasklist /FI "IMAGENAME eq python.exe" /FO TABLE`.
+
+## Step 15: Monitor Services Readiness
+1. Reactivate environment in main prompt: `conda activate trellis`.
+2. Loop to check readiness (up to 150 attempts, ~75 minutes):
+   - Run: `python check_services.py`.
+   - Interpret exit code:
+     - 0: Both ready.
+     - 1: LLM ready, Trellis not.
+     - 2: Trellis ready, LLM not.
+     - Other: Neither ready.
+   - Wait 30 seconds between checks.
+3. Services endpoints: LLM at `http://localhost:19002`, Trellis at `http://localhost:8000`.
+4. If timeout, check logs: `nim_llm\llama_container.log` and `nim_trellis\trellis_container.log`.
+
+## Step 16: Stop Services
+1. Stop LLM: `python -c "from nim_llm.manager import stop_container; stop_container()"`.
+2. Stop Trellis: `python -c "from nim_trellis.manager import stop_container; stop_container()"`.
+3. Kill remaining Python processes: `taskkill /f /im python.exe`.
+4. Deactivate environment: `conda deactivate`.
+
+## Completion
+If all steps succeed without errors, the installation is complete. You can now use the Trellis environment. Troubleshoot any errors by checking console output, logs, or dependencies. For first-time setups, model downloads and service starts may take significant time (60-120 minutes).
+</details>
 
 ## Troubleshooting
 
