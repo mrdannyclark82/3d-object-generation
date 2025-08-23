@@ -187,7 +187,7 @@ Once the application is running, you can:
 <img width="2313" height="125" alt="image" src="https://github.com/user-attachments/assets/8ca38e36-c245-4e06-93e9-5bec518025c9" />
    - Convert all images to 3D Objects (Delete unwanted images before converting to 3D)
      
-   - **NOTE**: Image to 3D Object processing takes ~45 seconds *per object* on a RTX 5090, when using the Convert All image option this time will be a multiple of the number of objects being converted, using the Convert All option may take a significant amount of time. The UI will not be updated until all objects have been converted. 
+   - **NOTE**: Image to 3D Object processing takes up to 45 seconds *per object* on a RTX 5090, when using the Convert All image option this time will be a multiple of the number of objects being converted, using the Convert All option may take a significant amount of time. The UI will not be updated until all objects have been converted. 
 
 3. **Save Objects**:
    - The Export Objects to File allows saving the generated objects to a folder.
