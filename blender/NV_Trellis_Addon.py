@@ -1,27 +1,10 @@
-#
-# SPDX-FileCopyrightText: Copyright (c) 1993-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
 bl_info = {
-    "name": "CHAT-TO-3D Server Manager",
+    "name": "3D Object Generation",
     "author": "NVIDIA",
     "version": (1, 0),
     "blender": (4, 2, 0),
     "category": "3D View",
-    "description": "Manages the CHAT-TO-3D server for 3D asset generation within Blender",
+    "description": "Manages the services for 3D asset generation within Blender",
 }
 
 import bpy
@@ -44,12 +27,12 @@ logger = logging.getLogger(__name__)
 llm_status = "NOT READY"
 trellis_status = "NOT READY"
 gradio_status = "NOT READY"
+starting_services = False
 llm_status_lock = threading.Lock()
 trellis_status_lock = threading.Lock()
 gradio_status_lock = threading.Lock()
+starting_services_lock = threading.Lock()
 stop_thread = False
-
-# Global stop event for logging threads
 log_output_stop = threading.Event()
 
 # Console handler for dynamic level adjustment
@@ -263,7 +246,6 @@ def check_gradio_service():
 def check_services_status():
     """Thread function to periodically check all services."""
     global llm_status, trellis_status, gradio_status
-    global stop_thread  # Optional, since it's only read
     python_path = get_conda_python_path()
     while not stop_thread:
         llm, trellis = get_services_status(python_path)
@@ -398,12 +380,43 @@ class TrellisManager:
             self.stderr_thread = None
             log_output_stop.clear()
 
+# Global variable to store service start result
+service_start_result = None
+
+def check_service_start_result():
+    """Timer function to check the result of service startup and report it."""
+    global service_start_result
+    if service_start_result is not None:
+        # Trigger UI redraw
+        for area in bpy.context.screen.areas:
+            if area.type == 'VIEW_3D':
+                area.tag_redraw()
+        # Report result using a new operator
+        bpy.ops.trellis.report_service_status('INVOKE_DEFAULT', success=service_start_result)
+        service_start_result = None
+        return None  # Stop the timer
+    return 0.1  # Continue checking
+
+class TRELLIS_OT_ReportServiceStatus(Operator):
+    bl_idname = "trellis.report_service_status"
+    bl_label = "Report Service Status"
+    
+    success: bpy.props.BoolProperty()
+
+    def execute(self, context):
+        if self.success:
+            self.report({'INFO'}, "Services started, waiting for readiness...")
+        else:
+            self.report({'ERROR'}, "Failed to start services via app.py")
+        return {'FINISHED'}
+
 class TRELLIS_OT_ManageTrellis(Operator):
     bl_idname = "trellis.manage_trellis"
     bl_label = "Manage TRELLIS"
 
     def check_services_ready(self, timeout=300):
         """Check if all services are ready, with timeout in seconds."""
+        global starting_services
         start_time = time.time()
         last_log_time = start_time
         while time.time() - start_time < timeout:
@@ -413,42 +426,50 @@ class TRELLIS_OT_ManageTrellis(Operator):
                     return True
                 current_time = time.time()
                 if current_time - last_log_time >= 5:
-                    logger.warning("Services not ready after %d seconds: LLM=%s, Trellis=%s, Gradio=%s",
+                    logger.info("Services not ready after %d seconds: LLM=%s, Trellis=%s, Gradio=%s",
                                 int(current_time - start_time), llm_status, trellis_status, gradio_status)
                     last_log_time = current_time
             time.sleep(1)
         logger.error("Services failed to start within %d seconds", timeout)
         return False
-    
-    def execute(self, context):
-        global trellis_status, llm_status, gradio_status
+
+    def start_services_thread(self, python_path, base_path):
+        """Start services in a separate thread and store the result."""
+        global starting_services, service_start_result
         manager = TrellisManager()
-        
-        with trellis_status_lock, llm_status_lock, gradio_status_lock:
+        success = manager.start_services(python_path, base_path)
+        with starting_services_lock:
+            starting_services = False
+        # Store the result in a global variable
+        service_start_result = success
+
+    def execute(self, context):
+        global trellis_status, llm_status, gradio_status, starting_services
+        with trellis_status_lock, llm_status_lock, gradio_status_lock, starting_services_lock:
             overall_status = "READY" if trellis_status == "READY" and llm_status == "READY" and gradio_status == "READY" else "NOT READY"
             logger.info(f"Current Status is: {overall_status}")
-        
+
         base_path = bpy.context.preferences.addons[__name__].preferences.base_path
         if not base_path or not os.path.isdir(base_path):
             self.report({'ERROR'}, "Invalid or missing Trellis Base Path")
             return {'CANCELLED'}
-        
+
         app_script = os.path.join(base_path, "app.py")
         if not os.path.isfile(app_script):
             self.report({'ERROR'}, f"app.py script not found: {app_script}")
             return {'CANCELLED'}
-        
+
         python_path = get_conda_python_path()
         if not python_path:
             self.report({'ERROR'}, "Conda Python executable not found. Set Conda Base Path in addon preferences or ensure conda is in PATH.")
             return {'CANCELLED'}
-        
+
         if overall_status == "READY":
-            # Stop services (existing code remains unchanged)
+            # Stop services
             try:
                 subprocess.run(["stop_services.bat"], shell=True, check=True, cwd=base_path)
                 logger.info("Services stopped via stop_services.bat")
-                # Wait briefly for services to become NOT READY (keep this short to avoid blocking)
+                # Wait briefly for services to become NOT READY
                 start_time = time.time()
                 timeout = 30
                 while time.time() - start_time < timeout:
@@ -456,7 +477,7 @@ class TRELLIS_OT_ManageTrellis(Operator):
                         if llm_status == "NOT READY" and trellis_status == "NOT READY" and gradio_status == "NOT READY":
                             break
                     time.sleep(1)
-                manager.stop_services()
+                TrellisManager().stop_services()
                 self.report({'INFO'}, "All services terminated successfully")
                 with trellis_status_lock:
                     trellis_status = "NOT READY"
@@ -489,22 +510,35 @@ class TRELLIS_OT_ManageTrellis(Operator):
                 except Exception as e:
                     logger.warning(f"Failed to stop existing services: {str(e)}")
                     self.report({'WARNING'}, "Failed to stop existing services, continuing with startup")
-                
-                # Start services non-blocking
-                if not manager.start_services(python_path, base_path):
-                    self.report({'ERROR'}, "Failed to start services via app.py")
-                    return {'CANCELLED'}
-                
+
+                # Set starting state
+                with starting_services_lock:
+                    starting_services = True
+
+                # Start services in a separate thread
+                threading.Thread(
+                    target=self.start_services_thread,
+                    args=(python_path, base_path),
+                    daemon=True
+                ).start()
+
+                # Register a timer to check the result
+                bpy.app.timers.register(
+                    check_service_start_result,
+                    first_interval=0.1,
+                    persistent=True
+                )
+
                 self.report({'INFO'}, "Services are starting... Check status below.")
-        
+
         return {'FINISHED'}
 
 class VIEW3D_PT_CHAT_TO_3D(Panel):
-    bl_label = "CHAT-TO-3D Server Manager"
+    bl_label = "3D Object Generation"
     bl_idname = "VIEW3D_PT_chat_to_3d"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'CHAT-TO-3D'
+    bl_category = '3D Object Generation'
     
     def draw(self, context):
         layout = self.layout
@@ -512,12 +546,17 @@ class VIEW3D_PT_CHAT_TO_3D(Panel):
         
         layout.label(text="Base Path is set in Add-on Preferences")
         
-        with trellis_status_lock, llm_status_lock, gradio_status_lock:
+        with trellis_status_lock, llm_status_lock, gradio_status_lock, starting_services_lock:
             overall_status = "READY" if trellis_status == "READY" and llm_status == "READY" and gradio_status == "READY" else "NOT READY"
-        layout.operator(
+            button_text = "Starting Services" if starting_services else ("Services Started .. Click to Terminate" if overall_status == "READY" else "Start Services")
+            button_enabled = not starting_services
+        
+        row = layout.row()
+        row.operator(
             TRELLIS_OT_ManageTrellis.bl_idname,
-            text="Terminate CHAT-TO-3D" if overall_status == "READY" else "Start CHAT-TO-3D"
+            text=button_text
         )
+        row.enabled = button_enabled
         
         with llm_status_lock:
             llm_stat = llm_status
@@ -536,21 +575,26 @@ class VIEW3D_PT_CHAT_TO_3D(Panel):
         with gradio_status_lock:
             gradio_stat = gradio_status
         layout.label(
-            text=f"Grado Web UI Status: {gradio_stat}",
+            text=f"Gradio Web UI Status: {gradio_stat}",
             icon='CHECKMARK' if gradio_stat == "READY" else 'ERROR'
         )
         
-        row = layout.row(align=True)     
+        row = layout.row(align=True)
         button_row = row.row(align=True)
         button_row.operator(
             "wm.url_open",
-            text="Open CHAT-TO-3D UI",
+            text="Open 3D Object Generation UI",
             icon='URL'
-        ).url = "http://127.0.0.1:7860/"
+        ).url = "http://127.0.0.1:7860/?__theme=light"
         button_row.enabled = (gradio_stat == "READY")
 
 def update_status_ui():
     """Timer function to refresh the UI with the latest statuses."""
+    global starting_services
+    with llm_status_lock, trellis_status_lock, gradio_status_lock, starting_services_lock:
+        if llm_status == "READY" and trellis_status == "READY" and gradio_status == "READY" and starting_services:
+            logger.info("All services are ready, resetting starting_services")
+            starting_services = False
     for area in bpy.context.screen.areas:
         if area.type == 'VIEW_3D':
             area.tag_redraw()
@@ -559,11 +603,12 @@ def update_status_ui():
 classes = (
     TrellisAddonPreferences,
     TRELLIS_OT_ManageTrellis,
+    TRELLIS_OT_ReportServiceStatus,
     VIEW3D_PT_CHAT_TO_3D,
 )
 
 def register():
-    print("CHAT-TO-3D Server Manager Add-on Loaded - Version 1.0 - June 16, 2025")
+    print("3D Object Generation Manager Add-on Loaded - Version 1.0 - June 16, 2025")
     if bpy.app.version < (4, 2, 0):
         print("Warning: This add-on requires Blender 4.2.0 or higher")
         return
