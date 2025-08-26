@@ -20,19 +20,12 @@ import sys
 from pathlib import Path
 import logging
 from constants import CONTAINER_NAME
-from wsl_mount import ensure_mqueue_mounted
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 try:
-    # Step 1: Ensure mqueue filesystem is mounted
-    logging.info("Preparing WSL environment for Trellis NIM...")
-    if not ensure_mqueue_mounted():
-        logging.error("Failed to mount mqueue filesystem. Cannot proceed with Trellis NIM startup.")
-        sys.exit(1)
-    
-    # Step 2: Resolve shell script path
+    # Step 1: Resolve shell script path
     script_dir = Path(__file__).resolve().parent
     ngc_path = script_dir / "ngc.py"
     windows_script_path = script_dir / "start_trellis_container.sh"
@@ -42,7 +35,7 @@ try:
     wsl_script_path = f"/mnt/{drive_letter}{windows_script_path.as_posix()[2:]}"
     logging.info(f"Resolved WSL script path: {wsl_script_path}")
 
-    # Step 3: Get NGC API Key
+    # Step 2: Get NGC API Key
     ngc_api_key = subprocess.check_output(
         [sys.executable, ngc_path],
         stderr=subprocess.STDOUT,
@@ -50,7 +43,7 @@ try:
     ).strip()
     logging.info("Successfully retrieved NGC API Key.")
 
-    # Step 4: Prepare environment + command
+    # Step 3: Prepare environment + command
     bash_command = (
         f"export NGC_API_KEY='{ngc_api_key}' CONTAINER_NAME='{CONTAINER_NAME}' && "
         f"'{wsl_script_path}'"
