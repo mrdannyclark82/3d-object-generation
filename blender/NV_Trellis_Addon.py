@@ -292,8 +292,8 @@ class TrellisAddonPreferences(AddonPreferences):
     bl_idname = __name__
 
     base_path: StringProperty(
-        name="Chat-To-3D Base Path",
-        description="Base path for TrellChat-To-3D project (e.g., C:\\path\\to\\chat-to-3d)",
+        name="Blueprint Base Path",
+        description="Base path for 3D object generation project (e.g., C:\\path\\to\\chat-to-3d)",
         default=os.environ.get("CHAT_TO_3D_PATH", ""),
         subtype='DIR_PATH'
     )
