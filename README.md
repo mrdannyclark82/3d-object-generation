@@ -15,25 +15,10 @@ An application that combines natural language processing with 3D asset generatio
 ### Prerequisites
 The NIM Prerequisite Installer requires Microsoft User Account Control (UAC) to be enabled.  UAC is enabled by default for Windows, but if it has been disabled, it must be enabled to ensure successful installation of the NIM Prerequisite Installer.  More information on Microsoft UAC can found [HERE](https://support.microsoft.com/en-us/windows/user-account-control-settings-d5b2046b-dcb8-54eb-f732-059f321afe18)
 
-Download the [MS Visual Studio Build Tools vs_buildTools.exe](https://aka.ms/vs/17/release/vs_BuildTools.exe)
-Open a command prompt at the vs_BuildTools.exe file location and send the following command:
-```
-vs_buildtools.exe --norestart --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended
-```
 Use winget to install Miniconda:
 ```
 winget install miniconda3
 ```
-Download the NVIDIA CUDA Toolkit 12.9
-[NVIDIA CUDA Toolkit 12.9](https://developer.download.nvidia.com/compute/cuda/12.9.0/local_installers/cuda_12.9.0_576.02_windows.exe)
-Run the installer and select a custom installation.
-![Screenshot 2025-05-22 221843](https://github.com/user-attachments/assets/e2e7fe07-d530-4aca-9668-a8566d1d5864)
-From the options select ONLY:  
-CUDA  >> Development >> Compiler
-CUDA >> Runtime >> Libraries
-![Screenshot 2025-05-22 222023](https://github.com/user-attachments/assets/9ccd92cc-55a5-467d-b4f3-f1e821a07689)
-Complete the installation
-
 Download the [NIM Prerequisite Installer](https://assets.ngc.nvidia.com/products/api-catalog/rtx/NIMSetup.exe), and run the NIMSetup.exe file, and follow the instructions in the setup dialogs. This will install the necessary system components to work with NVIDIA NIMs on your system.
 
 You will need to reboot your computer to complete the installation.
@@ -46,14 +31,6 @@ Install Git LFS (large file system) support
 ```
 winget install --id=GitHub.GitLFS  -e
 ```
-
-Install Microsoft Visual C++ 2015-2022 Redistributable Package  
-[https://aka.ms/vs/17/release/vc\_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-or
-```
-winget install Microsoft.VCRedist.2015+.x64
-```
-![Untitled-8](https://github.com/user-attachments/assets/29184836-3791-4c22-8a40-3254590faa0e)
 
 This blueprint requires the installation of Blender. The blueprint has been tested with the Blender 4.27 LTS (Long Term Support) build.   
 [https://www.blender.org/download/release/Blender4.2/blender-4.2.7-windows-x64.msi](https://www.blender.org/download/release/Blender4.2/blender-4.2.7-windows-x64.msi)
@@ -130,24 +107,25 @@ This will:
 - Allow you to proceed with other operations which may require VRAM (e.g., Blender)
 
 ## Usage - Blender Add On
-The CHAT-TO-3D Blender add-on can automatically manage the CHAT-TO-3D services without the need to manually start or stop these services outside of Blender.
+The **3D Object Generation Blender** add-on can automatically manage required services without the need to manually start or stop these services outside of Blender.
 ### Initial Setup Step
 1. Open Blender
 2. Open Edit >> Preferences >> Add-Ons
-3.<img width="995" height="380" alt="image" src="https://github.com/user-attachments/assets/02c7fb78-52fc-4e36-a4d9-89dbc150a3ef" />
-4. Enable CHAT-To-3D and Asset Importer by checking the boxes next to the add on names.
-5. Open the CHAT-TO-3D add on preferences and set the CHAT-TO-3D base folder to the chat-to-3d local repository directory.
-6. <img width="1492" height="699" alt="image" src="https://github.com/user-attachments/assets/a22521a8-14e4-4890-80e5-9a1167c5a846" />
+3.<img width="996" height="384" alt="image" src="https://github.com/user-attachments/assets/a858877d-d182-44f2-bcc9-72f47358070c" />
+4. Enable 3D Object Generation and Asset Importer by checking the boxes next to the add on names.
+5. Open the 3D Object Generation add on preferences and set the Blueprint Base folder to the 3d-object-generation local repository directory (This setting should be automatically set, but may be manually set if desired).
+6. <img width="983" height="537" alt="image" src="https://github.com/user-attachments/assets/55cb9cc8-3493-4b19-a139-14572e254c9a" />
+
 ### Normal Usage
 7. In the 3D layout view look for the Add On tabs on the right edge of the viewport, press N if they are not visible
-8. <img width="598" height="808" alt="image" src="https://github.com/user-attachments/assets/76e6332a-0945-4b60-a073-03e8bed29e63" />
-
+8. <img width="590" height="476" alt="image" src="https://github.com/user-attachments/assets/51a7b2dd-be42-44f4-8572-d35a3c3967ad" />
 9. Note: It is recommended to open a system console viewer to monitor the services and any information or errors that may be output.
    a. Blender Menu >> Window >> Toggle System Console
-10. Click the Start CHAT-TO-3D button to start the LLM agent, and the Trellis 3D services. (It may take up to 3 minutes for all services to fully load and start)
-11. Once all services have successfully started, the service will indicate: READY and the OPEN CHAT-TO-3D UI button will become available
-12. <img width="400" height="309" alt="image" src="https://github.com/user-attachments/assets/adfb5d40-b2e1-486a-8230-d003dd04b886" />
-13. Click the OPEN CHAT-TO-3D UI button to launch the CHAT-TO-3D interface
+10. Click the Start Start Services button to start the LLM agent, and the Trellis 3D services. (It may take up to 3 minutes for all services to fully load and start)
+11. Once all services have successfully started, the service will indicate: READY and the **Open 3D Object Generation UI** button will become available
+12. <img width="547" height="625" alt="image" src="https://github.com/user-attachments/assets/e4a62fd1-8948-4750-bba6-59438febc7a0" />
+13. Click the **Open 3D Object Generation UI** button to launch the 3D Object Generation interface.
+14. Clicking the **Services Started .. Click to Terminate** button will shut down the LLM and Trellis services and release system resources being utilized. 
     
 ### Using the Interface
 Once the application is running, you can:
