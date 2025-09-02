@@ -64,7 +64,8 @@ def create_modal():
                         label="3D Model Preview",
                         clear_color=[0.0, 0.0, 0.0, 0.0],
                         height=400,
-                        visible=False
+                        visible=False,
+                        interactive=False
                     )
                     # Message when no 3D model exists
                     no_3d_message = gr.Markdown(

@@ -318,7 +318,7 @@ echo This may take several minutes as containers need to download and start...
 
 :: Start LLM service in background
 echo Starting LLM service...
-start /B cmd /c "call conda activate trellis && python nim_llm\run_llama.py"
+start /B "LLM Service" cmd /c "call conda activate trellis && python nim_llm\run_llama.py"
 if errorlevel 1 (
     echo [ERROR] Failed to start LLM service!
     pause
@@ -331,7 +331,7 @@ timeout /t 10 /nobreak >nul
 
 :: Start Trellis service in background
 echo Starting Trellis service...
-start /B cmd /c "call conda activate trellis && python nim_trellis\run_trellis.py"
+start /B "Trellis Service" cmd /c "call conda activate trellis && python nim_trellis\run_trellis.py"
 if errorlevel 1 (
     echo [ERROR] Failed to start Trellis service!
     pause
@@ -352,8 +352,8 @@ echo.
 echo Waiting for services to be ready...
 echo This may take 60-120 minutes for first-time setup...
 
-:: Reactivate conda environment for service checking
-echo Reactivating conda environment for service monitoring...
+:: Use conda environment for service checking
+echo Setting up service monitoring environment...
 call conda activate trellis
 
 set /a attempts=0
@@ -368,6 +368,14 @@ echo Attempt %attempts%/%max_attempts% - Checking services...
 :: Use Python health checker
 python check_services.py
 set check_result=%errorlevel%
+
+:: Handle health checker failures gracefully
+if %check_result% geq 3 (
+    echo [WARNING] Health checker failed, retrying in 30 seconds...
+    timeout /t 30 /nobreak >nul
+    goto :wait_loop
+)
+
 if %check_result% equ 0 (
     set /a llm_ready=1
     set /a trellis_ready=1

@@ -48,7 +48,7 @@ def is_container_running() -> bool:
             if status_line:
                 print(f"Container {CONTAINER_NAME} status: {status_line}")
                 # Check if status indicates running (not "Exited", "Stopped", etc.)
-                if any(status in status_line.lower() for status in ["up", "running", "starting", "stopping"]):
+                if any(status in status_line.lower() for status in ["up", "running", "starting", "stopping", "created"]):
                     return True
         return False
     except Exception as e:
