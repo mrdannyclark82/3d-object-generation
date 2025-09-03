@@ -1,6 +1,10 @@
-﻿# 3D Object Generation
+﻿# 3D Object Generation Blueprint
 
-An application that combines natural language processing with 3D asset generation using LLAMA, SANA and TRELLIS.
+## Description
+
+The 3D Object Generation Blueprint is an end-to-end generative AI workflow that allows users to prototype 3D scenes quickly by simply describing the scene. The Blueprint takes a user’s 3D scene idea, generates object recommendations, associated prompts and previews using a Llama 3.1 8B LLM and NVIDIA SANA, and ready-to-use 3D objects with Microsoft TRELLIS.  
+
+> This blueprint supports the following NVIDIA GPUs:  RTX 5090, RTX 5080, RTX 4090, RTX 4080, RTX 6000 Ada. We're planning to add wider GPU support in the near future. We recommend at least 48 GB of system RAM. 
 
 ## Features
 
