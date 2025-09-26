@@ -36,12 +36,21 @@ try:
     logging.info(f"Resolved WSL script path: {wsl_script_path}")
 
     # Step 2: Get NGC API Key
-    ngc_api_key = subprocess.check_output(
+    output = subprocess.check_output(
         [sys.executable, ngc_path],
         stderr=subprocess.STDOUT,
         text=True
-    ).strip()
-    logging.info("Successfully retrieved NGC API Key.")
+    )
+
+    # Parse the output to extract the API key (handles warnings or extra text)
+    import re
+    key_match = re.search(r'nvapi-[a-zA-Z0-9_-]+', output)
+    if key_match:
+        ngc_api_key = key_match.group(0)
+        logging.info("Successfully retrieved and parsed NGC API Key.")
+    else:
+        logging.error("Could not parse NGC API Key from output.")
+        sys.exit(1)
 
     # Step 3: Prepare environment + command
     bash_command = (
@@ -71,7 +80,7 @@ try:
         process.wait()  # wait for completion
 
         if process.returncode != 0:
-            logging.error(f"Script exited with code {process.returncode}")
+            logging.error(f"Script executed with code {process.returncode}")
             sys.exit(process.returncode)
 
     logging.info("Script executed successfully.")
